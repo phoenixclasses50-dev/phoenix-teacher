@@ -490,8 +490,10 @@ function pgHome(){
   for(var i=0;i<CL.length;i++){
     var c=CL[i];
     var cnt=DB.students.filter(function(s){return s.cls.indexOf(c)>=0;}).length;
-    var fee=0;
-    var collected=DB.students.filter(function(s){return s.cls.indexOf(c)>=0;}).reduce(function(sum,s){return sum+getTotalPaid(s.id);},0);
+    var clsStudents=DB.students.filter(function(s){return s.cls.indexOf(c)>=0;});
+    var totalFee=clsStudents.reduce(function(sum,s){return sum+getYearlyFee(s.cls,s.subject);},0);
+    var collected=clsStudents.reduce(function(sum,s){return sum+getTotalPaid(s.id);},0);
+    var fee=totalFee;
     rows+='<tr><td style="font-weight:700">'+c+'</td><td style="font-weight:700;color:var(--accent)">'+cnt+'</td><td>₹'+fee+'</td><td style="color:var(--green);font-weight:700">₹'+collected+'</td></tr>';
   }
   // Attendance alerts
@@ -826,7 +828,7 @@ function pgFeeCollect(){
   if(typeof payModalId!=='undefined'&&payModalId){
     var ps=null;for(var i=0;i<DB.students.length;i++){if(DB.students[i].id===payModalId){ps=DB.students[i];break;}}
     if(ps){
-      var pbal=getBalance(ps.id,ps.cls);
+      var pbal=getBalance(ps.id,ps.cls,ps.subject);
       modal='<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:500;display:flex;align-items:flex-end">'+
         '<div style="background:var(--card);border-radius:20px 20px 0 0;padding:20px;width:100%;border-top:2px solid var(--accent)">'+
         '<div style="font-weight:800;font-size:15px;margin-bottom:4px">💰 Collect Payment</div>'+
@@ -873,11 +875,11 @@ function savePay(){
   payModalId=undefined;
   toast('Payment of ₹'+payment.amount+' saved!',false);
   if(ps&&ps.phone){
-    var bal=getBalance(ps.id,ps.cls);
+    var bal=getBalance(ps.id,ps.cls,ps.subject);
     var msg='Dear Parent,\n\n✅ *Payment Receipt*\nPhoenix Classes\n\n'+
       'Student: *'+ps.name+'*\nClass: '+ps.cls+'\n\n'+
       '💰 Amount Paid: *₹'+payment.amount+'*\nDate: '+fmtDate(payment.date)+'\n'+(payment.note?'Note: '+payment.note+'\n':'')+
-      '\nTotal Paid: ₹'+getTotalPaid(ps.id)+'\nYearly Fee: ₹'+getYearlyFee(ps.cls)+'\n'+
+      '\nTotal Paid: ₹'+getTotalPaid(ps.id)+'\nYearly Fee: ₹'+getYearlyFee(ps.cls,ps.subject)+'\n'+
       (bal<=0?'✅ *Fee Fully Cleared!*':'Remaining Balance: ₹'+bal)+
       '\n\nThank you!\nPhoenix Classes';
     setTimeout(function(){

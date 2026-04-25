@@ -319,6 +319,7 @@ function fmtDate(str){
 }
 
 var CL=['Class 8','Class 9','Class 10'];
+var CL_FULL=['Class 8 Semi-English','Class 8 Marathi','Class 9 Semi-English','Class 9 Marathi','Class 10 Semi-English','Class 10 Marathi'];
 var CL_MEDIUM=['Class 8 Semi-English','Class 8 Marathi','Class 9 Semi-English','Class 9 Marathi','Class 10 Semi-English','Class 10 Marathi'];
 var SB=['Maths','Science','Both'];
 var MEDIUM=['Semi-English','Marathi'];
@@ -539,7 +540,7 @@ function pgStu(){
         '</tr>';
     }).join('');
   return topbar('Students')+
-    '<div class="grid3">'+sc(DB.students.length,'Total','#f97316')+sc(DB.students.filter(function(s){return s.cls.indexOf('Class 8')>=0;}).length,'Class 8','#3b82f6')+sc(DB.students.filter(function(s){return s.cls.indexOf('Class 9')>=0;}).length,'Class 9','#22c55e')+'</div>'+
+    '<div class="grid3">'+sc(DB.students.length,'Total','#f97316')+sc(DB.students.filter(function(s){return s.cls.indexOf('Class 8')>=0;}).length,'Class 8','#3b82f6')+sc(DB.students.filter(function(s){return s.cls.indexOf('Class 9')>=0;}).length,'Class 9','#22c55e')+sc(DB.students.filter(function(s){return s.cls.indexOf('Class 10')>=0;}).length,'Class 10','#8b5cf6')+'</div>'+
     '<div class="card"><div class="card-title">➕ Add New Student</div>'+
     '<div class="mb"><label>Full Name</label><input id="sn" placeholder="Student full name"/></div>'+
     '<div class="grid2 mb">'+
@@ -956,7 +957,7 @@ function pgWhatsapp(){
   var tests=DB.marks.tests||[];
   return topbar('WhatsApp')+
   '<div class="card"><div class="card-title">📢 Batch Announcement</div>'+
-  '<div class="mb"><label>Select Class</label><div>'+cps(['All'].concat(CL),waCls,'setWC')+'</div></div>'+
+  '<div class="mb"><label>Select Class</label><div>'+cps(['All'].concat(CL_FULL),waCls,'setWC')+'</div></div>'+
   '<div class="mb"><label>Message</label><textarea id="wa-msg" rows="4" placeholder="e.g. Dear Parent, Tomorrow there is a class test. Please prepare your child. Thank you!"></textarea></div>'+
   '<button class="btn btn-green" onclick="sendBatch()">📢 Send to All Students</button></div>'+
 
@@ -967,7 +968,7 @@ function pgWhatsapp(){
 
   '<div class="card"><div class="card-title">💰 Fee Reminder</div>'+
   '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">Sends reminder to all students with pending balance.</div>'+
-  '<div class="mb"><label>Class</label><div>'+cps(['All'].concat(CL),waCls,'setWC')+'</div></div>'+
+  '<div class="mb"><label>Class</label><div>'+cps(['All'].concat(CL_FULL),waCls,'setWC')+'</div></div>'+
   '<button class="btn btn-red" onclick="sendFeeRemind()">💰 Send Fee Reminders</button></div>'+
 
   '<div class="card"><div class="card-title">📊 Send Test Results</div>'+
@@ -1010,7 +1011,7 @@ function sendFeeRemind(){
   if(!confirm('Send reminder to '+list.length+' parent(s)?'))return;
   var i=0;
   function next(){if(i>=list.length){toast('Reminders sent! ('+list.length+')',false);return;}var s=list[i];i++;
-    var bal=getBalance(s.id,s.cls,s.subject);var paid=getTotalPaid(s.id);var fee=getYearlyFee(s.cls);
+    var bal=getBalance(s.id,s.cls,s.subject);var paid=getTotalPaid(s.id);var fee=getYearlyFee(s.cls,s.subject);
     var msg='Dear Parent,\n\nThis is a gentle reminder for *'+s.name+'* ('+s.cls+')\nPhoenix Classes\n\n'+
       '💰 *Fee Details:*\nYearly Fee: ₹'+fee+'\nPaid Till Date: ₹'+paid+'\n*Balance Due: ₹'+bal+'*\n\nKindly clear the dues at the earliest.\n\nRegards,\nPhoenix Classes';
     waOpen(s.phone,msg);setTimeout(next,1500);}
@@ -1075,7 +1076,7 @@ function pgMaterials(){
   return '<div class="card"><div class="card-title">➕ Add Study Material</div>'+
     '<div class="mb"><label>Title</label><input id="mat-title" placeholder="e.g. Chapter 3 - Algebra Notes"/></div>'+
     '<div class="grid2 mb"><div><label>Class</label><select id="mat-cls">'+
-    ['All Classes'].concat(CL).map(function(c){return '<option>'+c+'</option>';}).join('')+'</select></div>'+
+    ['All Classes'].concat(CL_FULL).map(function(c){return '<option>'+c+'</option>';}).join('')+'</select></div>'+
     '<div><label>Subject</label><select id="mat-sub">'+
     SB.concat(['Both']).map(function(s){return '<option>'+s+'</option>';}).join('')+'</select></div></div>'+
     '<div class="mb"><label>Type</label><select id="mat-type">'+
@@ -1127,7 +1128,7 @@ function pgNotices(){
     '<div class="mb"><label>Message</label><textarea id="nmsg" rows="3" placeholder="Write notice details here..." style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:10px;font-size:13px;font-family:Arial,sans-serif;outline:none;resize:none;box-sizing:border-box"></textarea></div>'+
     '<div class="grid2 mb"><div><label>For Class</label><select id="ncls">'+
     '<option value="All">All Students</option>'+
-    CL.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('')+
+    CL_FULL.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('')+
     '</select></div>'+
     '<div><label>Date</label><input type="date" id="ndate" value="'+aDt+'"/></div></div>'+
     '<button class="btn btn-orange" onclick="addNotice()">📢 Post Notice</button></div>'+

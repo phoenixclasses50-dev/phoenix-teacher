@@ -547,9 +547,32 @@ function pgStu(){
 function aStu(){
   var n=document.getElementById('sn'),c=document.getElementById('sc2'),med=document.getElementById('smed'),s=document.getElementById('ss'),p=document.getElementById('sp');
   if(!n||!n.value.trim()){toast('Please enter student name!',true);return;}
-  var clsFull=c.value+' '+med.value; // e.g. "Class 8 Semi-English"
-  DB.students.push({id:Date.now(),name:n.value.trim(),cls:clsFull,subject:s.value,phone:p?p.value:''});
-  dbSWithSync();render();toast('Student added successfully!',false);
+  var clsFull=c.value+' '+med.value;
+  var newStu={id:Date.now(),name:n.value.trim(),cls:clsFull,subject:s.value,phone:p?p.value:''};
+  DB.students.push(newStu);
+  dbSWithSync();render();toast('Student added successfully! 🎉',false);
+  // Send WhatsApp greeting if phone exists
+  if(newStu.phone&&newStu.phone.length>=10){
+    setTimeout(function(){
+      if(confirm('Send Welcome message on WhatsApp to '+newStu.name+'\'s parent?')){
+        var msg='🔥 *Phoenix Classes — Welcome!*\n\n'+
+          'Dear Parent,\n\n'+
+          'We are delighted to welcome *'+newStu.name+'* to Phoenix Classes!\n\n'+
+          '📚 *Details:*\n'+
+          '• Class: '+newStu.cls+'\n'+
+          '• Subject: '+newStu.subject+'\n\n'+
+          '✅ *Student Portal:*\n'+
+          'Your child can view attendance, marks & fees at:\n'+
+          'https://phoenixclasses50-dev.github.io/Phoenix-Classes-/student.html\n'+
+          '(Login with registered phone number)\n\n'+
+          '📞 For any queries:\n'+
+          '9503949009 / 9096815310\n\n'+
+          'Learn · Think · Grow 🌟\n'+
+          'Phoenix Classes, Bahe-Walwa, Sangli';
+        waOpen(newStu.phone,msg);
+      }
+    },500);
+  }
 }
 function dStu(id){if(!confirm('Remove this student?'))return;DB.students=DB.students.filter(function(s){return s.id!==id;});delete DB.photos[id];delete DB.fees.payments[id];dbSWithSync();render();}
 function setSF(v){sF=v;render();}

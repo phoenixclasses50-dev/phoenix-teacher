@@ -450,7 +450,7 @@ function sendReportWA(sid){
   tests.forEach(function(t){var v=Number((md[t.id]||{})[sid]||0);if(v){totM+=t.maxMarks;obtM+=v;}});
   var avgPct=totM>0?Math.round((obtM/totM)*100):0;
   var ovG=avgPct>=75?'A':avgPct>=60?'B':avgPct>=40?'C':tests.length>0?'D':'—';
-  var paid=getTotalPaid(sid),fee=getYearlyFee(s.cls),bal=fee-paid;
+  var paid=getTotalPaid(sid),fee=getYearlyFee(s.cls,s.subject),bal=fee-paid;
   var today=new Date();var dateStr=today.getDate()+'/'+(today.getMonth()+1)+'/'+today.getFullYear();
   var testLines=tests.map(function(t){var v=Number((md[t.id]||{})[sid]||0);var pct=v?Math.round((v/t.maxMarks)*100):0;var g=!v?'—':pct>=75?'A':pct>=60?'B':pct>=40?'C':'D';return '• '+t.testName+': '+v+'/'+t.maxMarks+' ('+pct+'%) — Grade '+g;}).join('\n');
   var msg='📊 *Monthly Progress Report*\n🔥 Phoenix Classes\n📅 Date: '+dateStr+'\n━━━━━━━━━━━━━━━━\n'+
@@ -489,9 +489,9 @@ function pgHome(){
   var rows='';
   for(var i=0;i<CL.length;i++){
     var c=CL[i];
-    var cnt=DB.students.filter(function(s){return s.cls===c;}).length;
+    var cnt=DB.students.filter(function(s){return s.cls.indexOf(c)>=0;}).length;
     var fee=0;
-    var collected=DB.students.filter(function(s){return s.cls===c;}).reduce(function(sum,s){return sum+getTotalPaid(s.id);},0);
+    var collected=DB.students.filter(function(s){return s.cls.indexOf(c)>=0;}).reduce(function(sum,s){return sum+getTotalPaid(s.id);},0);
     rows+='<tr><td style="font-weight:700">'+c+'</td><td style="font-weight:700;color:var(--accent)">'+cnt+'</td><td>₹'+fee+'</td><td style="color:var(--green);font-weight:700">₹'+collected+'</td></tr>';
   }
   // Attendance alerts
@@ -549,7 +549,7 @@ function pgStu(){
     '<div class="mb"><label>Subject</label><select id="ss">'+SB.map(function(s){return '<option>'+s+'</option>';}).join('')+'</select></div>'+
     '<div class="mb"><label>Parent Phone</label><input id="sp" type="tel" placeholder="10-digit number"/></div>'+
     '<button class="btn btn-orange" onclick="aStu()">➕ Add Student</button></div>'+
-    '<div class="mb">'+cps(['All','Class 8','Class 9','Class 10'].concat(CL_MEDIUM),sF,'setSF')+'</div>'+
+    '<div class="mb">'+cps(['All'].concat(CL_FULL),sF,'setSF')+'</div>'+
     '<div class="mb"><input placeholder="🔍 Search..." oninput="sSr=this.value;render()" value="'+esc(sSr)+'"/></div>'+
     '<div class="card"><div class="card-title">All Students — Tap name for Details</div>'+
     '<table><thead><tr><th></th><th>Name</th><th>Subject</th><th>Fee</th><th>Del</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
@@ -743,7 +743,7 @@ function pgMrk(){
   var tests=DB.marks.tests||[],md=DB.marks.data||{};
   var tlist=tests.length===0?'<div class="empty">No tests yet.</div>':
     tests.map(function(t){
-      var sl=DB.students.filter(function(s){return s.cls===t.cls&&(s.subject===t.subject||s.subject==='Both'||t.subject==='Both');});
+      var sl=DB.students.filter(function(s){return (s.cls===t.cls||s.cls.indexOf(t.cls)>=0)&&(s.subject===t.subject||s.subject==='Both'||t.subject==='Both');});
       var vals=sl.map(function(s){return Number((md[t.id]||{})[s.id]||0);}).filter(function(v){return v>0;});
       var avg=vals.length?(vals.reduce(function(a,b){return a+b;},0)/vals.length).toFixed(1):'—';
       return '<div class="titem '+(selT===t.id?'on':'')+'" style="display:flex;justify-content:space-between;align-items:center">'+
@@ -754,7 +754,7 @@ function pgMrk(){
         '</div>';
     }).join('');
   var stObj=null;for(var i=0;i<tests.length;i++){if(tests[i].id===selT){stObj=tests[i];break;}}
-  var ts=stObj?DB.students.filter(function(s){return s.cls===stObj.cls&&(s.subject===stObj.subject||s.subject==='Both'||stObj.subject==='Both');}):[];
+  var ts=stObj?DB.students.filter(function(s){return (s.cls===stObj.cls||s.cls.indexOf(stObj.cls)>=0)&&(s.subject===stObj.subject||s.subject==='Both'||stObj.subject==='Both');}):[];
   var mp='<div class="empty">Select a test to enter marks</div>';
   if(stObj){
     var rows=ts.length===0?'<tr><td colspan="4" class="empty">No students.</td></tr>':
@@ -809,7 +809,7 @@ function pgFeeCollect(){
   var totalC=getTotalCollected(),totalP=getTotalPending();
   var rows=fl.length===0?'<tr><td colspan="5" class="empty">No students.</td></tr>':
     fl.map(function(s,i){
-      var paid=getTotalPaid(s.id),fee=getYearlyFee(s.cls),bal=fee-paid;
+      var paid=getTotalPaid(s.id),fee=getYearlyFee(s.cls,s.subject),bal=fee-paid;
       var pct=fee>0?Math.round((paid/fee)*100):0;
       return '<tr>'+
         '<td>'+photoEl(s.id,s.name)+'</td>'+
@@ -817,8 +817,8 @@ function pgFeeCollect(){
         '<td><div style="font-size:11px;color:var(--green);font-weight:700">₹'+paid+'</div>'+
            '<div style="font-size:10px;color:var(--muted)">of ₹'+fee+'</div>'+
            '<div class="bar-bg" style="margin-top:3px;height:5px"><div class="bar-fill" style="width:'+pct+'%;background:var(--green)"></div></div></td>'+
-        '<td>'+(bal<=0?bdg('Paid ✓','#22c55e'):bdg('₹'+bal,'#ef4444'))+'</td>'+
-        '<td>'+(bal>0?'<button class="btn-sm btn-green" onclick="openPay('+s.id+')">+ Pay</button>':'<span style="font-size:11px;color:var(--green)">✅</span>')+'</td>'+
+        '<td>'+(fee>0&&bal<=0?bdg('Paid ✓','#22c55e'):fee===0?bdg('Setup Fee','#94a3b8'):bdg('₹'+bal+' Due','#ef4444'))+'</td>'+
+        '<td>'+(fee>0&&bal>0?'<button class="btn-sm btn-green" onclick="openPay('+s.id+')">+ Pay</button>':fee===0?'<span style="font-size:11px;color:var(--muted)">—</span>':'<span style="font-size:11px;color:var(--green)">✅</span>')+'</td>'+
         '</tr>';
     }).join('');
   // payment modal
@@ -1011,7 +1011,7 @@ function sendFeeRemind(){
   if(!confirm('Send reminder to '+list.length+' parent(s)?'))return;
   var i=0;
   function next(){if(i>=list.length){toast('Reminders sent! ('+list.length+')',false);return;}var s=list[i];i++;
-    var bal=getBalance(s.id,s.cls,s.subject);var paid=getTotalPaid(s.id);var fee=getYearlyFee(s.cls,s.subject);
+    var fee2=getYearlyFee(s.cls,s.subject);var paid=getTotalPaid(s.id);var bal=fee2-paid;var fee=fee2;
     var msg='Dear Parent,\n\nThis is a gentle reminder for *'+s.name+'* ('+s.cls+')\nPhoenix Classes\n\n'+
       '💰 *Fee Details:*\nYearly Fee: ₹'+fee+'\nPaid Till Date: ₹'+paid+'\n*Balance Due: ₹'+bal+'*\n\nKindly clear the dues at the earliest.\n\nRegards,\nPhoenix Classes';
     waOpen(s.phone,msg);setTimeout(next,1500);}

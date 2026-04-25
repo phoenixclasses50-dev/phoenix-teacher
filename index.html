@@ -324,7 +324,7 @@ var SB=['Maths','Science','Both'];
 var MEDIUM=['Semi-English','Marathi'];
 var DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 var PERIODS=['9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM'];
-var pg='dashboard',selT=null,mEn={},aCl='Class 8',aDt='',fCl='All',fYr=2026,sF='All',sSr='',selStu=null,waCls='All',waAttCls='Class 8',ttDay='Monday',moreTab='timetable';
+var pg='dashboard',selT=null,mEn={},aCl='Class 8',aDt='',fCl='All',fYr=2026,sF='All',sSr='',selStu=null,waCls='All',waAttCls='Class 8',ttDay='Monday',moreTab='timetable',editStuId=null;
 
 function initDate(){var d=new Date();aDt=d.getFullYear()+'-'+(d.getMonth()<9?'0':'')+(d.getMonth()+1)+'-'+(d.getDate()<10?'0':'')+d.getDate();fYr=d.getFullYear();}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -349,14 +349,23 @@ function getTotalPaid(sid){
   return pays.reduce(function(s,p){return s+(+p.amount||0);},0);
 }
 function getYearlyFee(cls,subject){
+  var cf=DB.fees.classFee||{};
+  if(!cls)return 0;
   if(subject){
+    // Exact match: "Class 10 Semi-English - Both" (Setup format)
     var key=cls+' - '+subject;
-    if(DB.fees.classFee[key]!==undefined)return DB.fees.classFee[key];
+    if(cf[key]>0)return cf[key];
+    // Without medium: "Class 10 - Both"
+    var base=cls.replace(' Semi-English','').replace(' Marathi','').trim();
+    var key2=base+' - '+subject;
+    if(cf[key2]>0)return cf[key2];
   }
-  return DB.fees.classFee[cls]||0;
+  // Just class name
+  if(cf[cls]>0)return cf[cls];
+  return 0;
 }
-function getBalance(sid,cls){
-  return getYearlyFee(cls)-getTotalPaid(sid);
+function getBalance(sid,cls,subject){
+  return getYearlyFee(cls,subject)-getTotalPaid(sid);
 }
 function getTotalCollected(){
   var total=0;
@@ -365,7 +374,7 @@ function getTotalCollected(){
 }
 function getTotalPending(){
   var total=0;
-  DB.students.forEach(function(s){var bal=getBalance(s.id,s.cls);if(bal>0)total+=bal;});
+  DB.students.forEach(function(s){var bal=getBalance(s.id,s.cls,s.subject);if(bal>0)total+=bal;});
   return total;
 }
 
@@ -480,7 +489,7 @@ function pgHome(){
   for(var i=0;i<CL.length;i++){
     var c=CL[i];
     var cnt=DB.students.filter(function(s){return s.cls===c;}).length;
-    var fee=getYearlyFee(c);
+    var fee=0;
     var collected=DB.students.filter(function(s){return s.cls===c;}).reduce(function(sum,s){return sum+getTotalPaid(s.id);},0);
     rows+='<tr><td style="font-weight:700">'+c+'</td><td style="font-weight:700;color:var(--accent)">'+cnt+'</td><td>₹'+fee+'</td><td style="color:var(--green);font-weight:700">₹'+collected+'</td></tr>';
   }
@@ -525,8 +534,8 @@ function pgStu(){
         '<td>'+photoEl(s.id,s.name)+'</td>'+
         '<td style="font-weight:700;cursor:pointer;color:var(--accent)" onclick="selStu='+s.id+';render()">'+esc(s.name)+'<br><span style="font-size:10px;color:var(--muted)">'+s.cls+'</span>'+badgeHtml(badges)+'</td>'+
         '<td>'+bdg(s.subject,'#3b82f6')+'</td>'+
-        '<td>'+(bal<=0?bdg('Full Paid','#22c55e'):bdg('₹'+bal+' Due','#ef4444'))+'</td>'+
-        '<td><button class="btn-sm btn-red" onclick="dStu('+s.id+')">✕</button></td>'+
+        '<td>'+(fee>0&&bal<=0?bdg('Full Paid','#22c55e'):fee===0?bdg('Fee Not Set','#94a3b8'):bdg('₹'+bal+' Due','#ef4444'))+'</td>'+
+        '<td style="display:flex;gap:4px"><button class="btn-sm" style="background:#3b82f6" onclick="openEditStu('+s.id+')">✏️</button><button class="btn-sm btn-red" onclick="dStu('+s.id+')">✕</button></td>'+
         '</tr>';
     }).join('');
   return topbar('Students')+
@@ -543,6 +552,68 @@ function pgStu(){
     '<div class="mb"><input placeholder="🔍 Search..." oninput="sSr=this.value;render()" value="'+esc(sSr)+'"/></div>'+
     '<div class="card"><div class="card-title">All Students — Tap name for Details</div>'+
     '<table><thead><tr><th></th><th>Name</th><th>Subject</th><th>Fee</th><th>Del</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function openEditStu(id){
+  var s=null;for(var i=0;i<DB.students.length;i++){if(DB.students[i].id===id){s=DB.students[i];break;}}
+  if(!s)return;
+  editStuId=id;
+  // Parse cls and medium
+  var clsBase='Class 8',med='Semi-English';
+  if(s.cls.indexOf('Class 10')>=0)clsBase='Class 10';
+  else if(s.cls.indexOf('Class 9')>=0)clsBase='Class 9';
+  if(s.cls.indexOf('Marathi')>=0)med='Marathi';
+  // Show modal
+  var modal=document.getElementById('edit-stu-modal');
+  if(!modal){
+    var div=document.createElement('div');
+    div.id='edit-stu-modal';
+    div.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:999;display:flex;align-items:center;justify-content:center;';
+    div.innerHTML='<div style="background:var(--card);border-radius:16px;padding:20px;width:90%;max-width:400px;border:1px solid var(--border)">'+
+      '<div style="font-size:16px;font-weight:800;margin-bottom:16px;color:var(--accent)">✏️ Edit Student</div>'+
+      '<div class="mb"><label>Full Name</label><input id="edit-sn" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:Arial,sans-serif"/></div>'+
+      '<div class="grid2 mb">'+
+      '<div><label>Class</label><select id="edit-sc" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none">'+
+      ['Class 8','Class 9','Class 10'].map(function(c){return'<option>'+c+'</option>';}).join('')+'</select></div>'+
+      '<div><label>Medium</label><select id="edit-smed" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none">'+
+      MEDIUM.map(function(m){return'<option>'+m+'</option>';}).join('')+'</select></div></div>'+
+      '<div class="mb"><label>Subject</label><select id="edit-ss" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none">'+
+      SB.map(function(s){return'<option>'+s+'</option>';}).join('')+'</select></div>'+
+      '<div class="mb"><label>Parent Phone</label><input id="edit-sp" type="tel" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:Arial,sans-serif"/></div>'+
+      '<div style="display:flex;gap:8px;margin-top:8px">'+
+      '<button onclick="saveEditStu()" style="flex:1;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer">Save Changes</button>'+
+      '<button onclick="closeEditStu()" style="flex:1;background:var(--border);color:var(--muted);border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer">Cancel</button>'+
+      '</div></div>';
+    document.body.appendChild(div);
+  }
+  document.getElementById('edit-sn').value=s.name;
+  document.getElementById('edit-sc').value=clsBase;
+  document.getElementById('edit-smed').value=med;
+  document.getElementById('edit-ss').value=s.subject;
+  document.getElementById('edit-sp').value=s.phone||'';
+  document.getElementById('edit-stu-modal').style.display='flex';
+}
+function closeEditStu(){
+  var m=document.getElementById('edit-stu-modal');
+  if(m)m.style.display='none';
+  editStuId=null;
+}
+function saveEditStu(){
+  var n=document.getElementById('edit-sn');
+  var c=document.getElementById('edit-sc');
+  var med=document.getElementById('edit-smed');
+  var s=document.getElementById('edit-ss');
+  var p=document.getElementById('edit-sp');
+  if(!n||!n.value.trim()){toast('Enter student name!',true);return;}
+  for(var i=0;i<DB.students.length;i++){
+    if(DB.students[i].id===editStuId){
+      DB.students[i].name=n.value.trim();
+      DB.students[i].cls=c.value+' '+med.value;
+      DB.students[i].subject=s.value;
+      DB.students[i].phone=p?p.value:'';
+      break;
+    }
+  }
+  dbSWithSync();toast('Student updated! ✅',false);closeEditStu();render();
 }
 function aStu(){
   var n=document.getElementById('sn'),c=document.getElementById('sc2'),med=document.getElementById('smed'),s=document.getElementById('ss'),p=document.getElementById('sp');
@@ -934,12 +1005,12 @@ function sendAbsent(){
   next();
 }
 function sendFeeRemind(){
-  var list=DB.students.filter(function(s){return(waCls==='All'||s.cls===waCls)&&getBalance(s.id,s.cls)>0;});
+  var list=DB.students.filter(function(s){return(waCls==='All'||s.cls===waCls)&&getBalance(s.id,s.cls,s.subject)>0;});
   if(!list.length){toast('No pending fees! ✅',false);return;}
   if(!confirm('Send reminder to '+list.length+' parent(s)?'))return;
   var i=0;
   function next(){if(i>=list.length){toast('Reminders sent! ('+list.length+')',false);return;}var s=list[i];i++;
-    var bal=getBalance(s.id,s.cls);var paid=getTotalPaid(s.id);var fee=getYearlyFee(s.cls);
+    var bal=getBalance(s.id,s.cls,s.subject);var paid=getTotalPaid(s.id);var fee=getYearlyFee(s.cls);
     var msg='Dear Parent,\n\nThis is a gentle reminder for *'+s.name+'* ('+s.cls+')\nPhoenix Classes\n\n'+
       '💰 *Fee Details:*\nYearly Fee: ₹'+fee+'\nPaid Till Date: ₹'+paid+'\n*Balance Due: ₹'+bal+'*\n\nKindly clear the dues at the earliest.\n\nRegards,\nPhoenix Classes';
     waOpen(s.phone,msg);setTimeout(next,1500);}

@@ -325,7 +325,7 @@ var SB=['Maths','Science','Both'];
 var MEDIUM=['Semi-English','Marathi'];
 var DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 var PERIODS=['9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM'];
-var pg='dashboard',selT=null,mEn={},aCl='Class 8',aDt='',fCl='All',fYr=2026,sF='All',sSr='',selStu=null,waCls='All',waAttCls='Class 8',ttDay='Monday',moreTab='timetable',editStuId=null;
+var pg='dashboard',selT=null,mEn={},aCl='Class 8 Semi-English',aDt='',fCl='All',fYr=2026,sF='All',sSr='',selStu=null,waCls='All',waAttCls='Class 8',ttDay='Monday',moreTab='timetable',editStuId=null;
 
 function initDate(){var d=new Date();aDt=d.getFullYear()+'-'+(d.getMonth()<9?'0':'')+(d.getMonth()+1)+'-'+(d.getDate()<10?'0':'')+d.getDate();fYr=d.getFullYear();}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -399,7 +399,7 @@ function getBadges(sid,cls){
   if(yearlyFee>0&&totalPaid>=yearlyFee)badges.push({icon:'💰',label:'Fee Clear',color:'#22c55e'});
   // Attendance badges
   var attD=0,attP=0;
-  for(var k in DB.attendance){if(k.indexOf('_'+cls)>=0){var r=DB.attendance[k];if(r[sid]){attD++;if(r[sid]==='P')attP++;}}}
+  for(var k in DB.attendance){var kCls=k.split('_').slice(1).join('_');if(kCls===cls||kCls.indexOf(cls)>=0||cls.indexOf(kCls)>=0){var r=DB.attendance[k];if(r[sid]){attD++;if(r[sid]==='P')attP++;}}}
   var attPct=attD>0?Math.round((attP/attD)*100):0;
   if(attPct===100&&attD>0)badges.push({icon:'📅',label:'Perfect Attendance',color:'#3b82f6'});
   if(attPct>=90&&attD>0)badges.push({icon:'🌟',label:'Star Attendance',color:'#6366f1'});
@@ -426,7 +426,7 @@ function badgeHtml(badges){
 // ── ATTENDANCE ALERT ─────────────────────────────────────────────
 function getAttPct(sid,cls){
   var attD=0,attP=0;
-  for(var k in DB.attendance){if(k.indexOf('_'+cls)>=0){var r=DB.attendance[k];if(r[sid]){attD++;if(r[sid]==='P')attP++;}}}
+  for(var k in DB.attendance){var kCls=k.split('_').slice(1).join('_');if(kCls===cls||kCls.indexOf(cls)>=0||cls.indexOf(kCls)>=0){var r=DB.attendance[k];if(r[sid]){attD++;if(r[sid]==='P')attP++;}}}
   return attD>0?Math.round((attP/attD)*100):null;
 }
 
@@ -531,7 +531,7 @@ function pgStu(){
   var fl=DB.students.filter(function(s){return(sF==='All'||s.cls===sF||s.cls.indexOf(sF)>=0)&&s.name.toLowerCase().indexOf(sSr.toLowerCase())>=0;});
   var rows=fl.length===0?'<tr><td colspan="5" class="empty">No students found.</td></tr>':
     fl.map(function(s,i){
-      var paid=getTotalPaid(s.id),total=getYearlyFee(s.cls,s.subject),bal=total-paid;
+      var paid=getTotalPaid(s.id),fee=getYearlyFee(s.cls,s.subject),bal=fee-paid;
       var badges=getBadges(s.id,s.cls);
       return '<tr>'+
         '<td>'+photoEl(s.id,s.name)+'</td>'+
@@ -715,7 +715,7 @@ function pgReport(id){
 
 // ── ATTENDANCE ────────────────────────────────────────────────────
 function pgAtt(){
-  var cs=DB.students.filter(function(s){return s.cls===aCl;});
+  var cs=DB.students.filter(function(s){return aCl==='All'?true:s.cls===aCl||s.cls.indexOf(aCl)>=0;});
   var key=aDt+'_'+aCl,dr=DB.attendance[key]||{},pr=0,ab=0;
   for(var k in dr){if(dr[k]==='P')pr++;else ab++;}
   var rows=cs.length===0?'<tr><td colspan="4" class="empty">No students in '+aCl+'.</td></tr>':

@@ -718,26 +718,90 @@ function pgAtt(){
   var cs=DB.students.filter(function(s){return aCl==='All'?true:s.cls===aCl||s.cls.indexOf(aCl)>=0;});
   var key=aDt+'_'+aCl,dr=DB.attendance[key]||{},pr=0,ab=0;
   for(var k in dr){if(dr[k]==='P')pr++;else ab++;}
-  var rows=cs.length===0?'<tr><td colspan="4" class="empty">No students in '+aCl+'.</td></tr>':
+  var rows=cs.length===0?'<tr><td colspan="5" class="empty">No students in '+aCl+'.</td></tr>':
     cs.map(function(s,i){
       var st2=dr[s.id];
-      return '<tr><td>'+photoEl(s.id,s.name)+'</td><td style="font-weight:700">'+esc(s.name)+'</td>'+
+      var isAbsent=st2==='A';
+      var waBtn=isAbsent&&s.phone?
+        '<button class="btn-sm" style="background:#25d366;margin-left:4px" onclick="sendAbsentWA('+s.id+')">📱</button>':'';
+      return '<tr>'+
+        '<td>'+photoEl(s.id,s.name)+'</td>'+
+        '<td style="font-weight:700">'+esc(s.name)+'<br><span style="font-size:10px;color:var(--muted)">'+s.cls+'</span></td>'+
         '<td>'+(st2==='P'?bdg('Present','#22c55e'):st2==='A'?bdg('Absent','#ef4444'):bdg('—','var(--muted)'))+'</td>'+
-        '<td><button class="btn-sm '+(st2==='P'?'btn-green':'btn-gray')+'" style="margin-right:4px" onclick="mAtt('+s.id+',\'P\')">P</button>'+
-        '<button class="btn-sm '+(st2==='A'?'btn-red':'btn-gray')+'" onclick="mAtt('+s.id+',\'A\')">A</button></td></tr>';
+        '<td style="display:flex;align-items:center;flex-wrap:wrap;gap:3px">'+
+        '<button class="btn-sm '+(st2==='P'?'btn-green':'btn-gray')+'" onclick="mAtt('+s.id+',\'P\')">P</button>'+
+        '<button class="btn-sm '+(st2==='A'?'btn-red':'btn-gray')+'" onclick="mAtt('+s.id+',\'A\')">A</button>'+
+        waBtn+
+        '</td></tr>';
     }).join('');
+  // Absent students list for bulk reminder
+  var absentList=cs.filter(function(s){return dr[s.id]==='A'&&s.phone;});
+  var bulkBtn=absentList.length>0?
+    '<button class="btn btn-red" style="margin-top:6px" onclick="sendAllAbsentWA()">📱 Send Absent Alert to All ('+absentList.length+')</button>':'';
   return topbar('Attendance')+
     '<div class="grid3">'+sc(cs.length,'Students','#f97316')+sc(pr,'Present','#22c55e')+sc(ab,'Absent','#ef4444')+'</div>'+
     '<div class="card"><div class="card-title">📈 Progress</div>'+bar('Attendance',pr,cs.length||1,'#22c55e')+'</div>'+
     '<div class="mb"><label>Date</label><input type="date" value="'+aDt+'" onchange="aDt=this.value;render()"/></div>'+
-    '<div class="mb">'+cps(CL,aCl,'setAC')+'</div>'+
+    '<div class="mb">'+cps(['All'].concat(CL_FULL),aCl,'setAC')+'</div>'+
     '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
     '<div style="font-weight:800">'+aCl+' — '+aDt+'</div>'+
     '<div style="display:flex;gap:6px"><button class="btn-sm btn-green" onclick="mAll(\'P\')">✓ All P</button><button class="btn-sm btn-red" onclick="mAll(\'A\')">✗ All A</button><button class="btn-sm" style="background:#7c3aed" onclick="delAtt(\''+aDt+'\',\''+aCl+'\')">🗑️</button></div></div>'+
-    '<table><thead><tr><th></th><th>Name</th><th>Status</th><th>Mark</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    '<table><thead><tr><th></th><th>Name</th><th>Status</th><th>Mark & Alert</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    bulkBtn+'</div>';
 }
-function mAtt(id,s){var k=aDt+'_'+aCl;if(!DB.attendance[k])DB.attendance[k]={};DB.attendance[k][id]=s;dbSWithSync();render();toast(s==='P'?'Marked Present ✓':'Marked Absent ✗',s==='A');}
-function mAll(s){var k=aDt+'_'+aCl;DB.attendance[k]={};DB.students.filter(function(x){return x.cls===aCl;}).forEach(function(x){DB.attendance[k][x.id]=s;});dbSWithSync();render();toast(s==='P'?'All Present!':'All Absent!',false);}
+
+function sendAbsentWA(id){
+  var s=null;for(var i=0;i<DB.students.length;i++){if(DB.students[i].id===id){s=DB.students[i];break;}}
+  if(!s||!s.phone){toast('No phone number!',true);return;}
+  var attD=0,attP=0;
+  for(var k in DB.attendance){if(k.indexOf('_'+s.cls)>=0){var r=DB.attendance[k];if(r[id]){attD++;if(r[id]==='P')attP++;}}}
+  var attPct=attD>0?Math.round((attP/attD)*100):0;
+  var msg='Dear Parent,\n\n⚠️ *Absent Alert*\nPhoenix Classes\n\n'+
+    '👤 Student: *'+s.name+'*\n'+
+    '📚 Class: '+s.cls+'\n'+
+    '📅 Date: '+fmtDate(aDt)+'\n\n'+
+    '*'+s.name+' was absent today.*\n\n'+
+    '📊 Overall Attendance: '+attPct+'%'+
+    (attPct<75?'\n⚠️ Attendance below 75%! Please attend regularly.':'')+
+    '\n\nPlease ensure regular attendance.\n\nRegards,\nPhoenix Classes\n9503949009 / 9096815310';
+  waOpen(s.phone,msg);
+}
+
+function sendAllAbsentWA(){
+  var cs=DB.students.filter(function(s){return aCl==='All'?true:s.cls===aCl||s.cls.indexOf(aCl)>=0;});
+  var key=aDt+'_'+aCl,dr=DB.attendance[key]||{};
+  var absentList=cs.filter(function(s){return dr[s.id]==='A'&&s.phone;});
+  if(!absentList.length){toast('No absent students with phone!',true);return;}
+  if(!confirm('Send absent alert to '+absentList.length+' parent(s)?'))return;
+  var i=0;
+  function next(){
+    if(i>=absentList.length){toast('Alerts sent to '+absentList.length+' parents! ✅',false);return;}
+    sendAbsentWA(absentList[i].id);
+    i++;
+    setTimeout(next,1500);
+  }
+  next();
+}
+
+function mAtt(id,s){
+  var k=aDt+'_'+aCl;
+  if(!DB.attendance[k])DB.attendance[k]={};
+  DB.attendance[k][id]=s;
+  dbSWithSync();render();
+  toast(s==='P'?'Marked Present ✓':'Marked Absent ✗',s==='A');
+  // Auto prompt WA if absent and has phone
+  if(s==='A'){
+    var stu=null;for(var i=0;i<DB.students.length;i++){if(DB.students[i].id===id){stu=DB.students[i];break;}}
+    if(stu&&stu.phone){
+      setTimeout(function(){
+        if(confirm('Send absent alert to '+stu.name+'\'s parent on WhatsApp?')){
+          sendAbsentWA(id);
+        }
+      },400);
+    }
+  }
+}
+function mAll(s){var k=aDt+'_'+aCl;DB.attendance[k]={};DB.students.filter(function(x){return x.cls===aCl||x.cls.indexOf(aCl)>=0;}).forEach(function(x){DB.attendance[k][x.id]=s;});dbSWithSync();render();toast(s==='P'?'All Present!':'All Absent!',false);}
 function setAC(c){aCl=c;render();}
 
 // ── MARKS ─────────────────────────────────────────────────────────

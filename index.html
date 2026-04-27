@@ -871,7 +871,7 @@ function pgFee(){
 }
 
 function pgFeeCollect(){
-  var fl=DB.students.filter(function(s){return fCl==='All'||s.cls===fCl;});
+  var fl=DB.students.filter(function(s){return fCl==='All'||s.cls===fCl||s.cls.indexOf(fCl)>=0;});
   var totalC=getTotalCollected(),totalP=getTotalPending();
   var rows=fl.length===0?'<tr><td colspan="5" class="empty">No students.</td></tr>':
     fl.map(function(s,i){
@@ -956,7 +956,7 @@ function savePay(){
 }
 
 function pgFeeHistory(){
-  var fl=DB.students.filter(function(s){return fCl==='All'||s.cls===fCl;});
+  var fl=DB.students.filter(function(s){return fCl==='All'||s.cls===fCl||s.cls.indexOf(fCl)>=0;});
   var items=[];
   fl.forEach(function(s){
     (DB.fees.payments[s.id]||[]).forEach(function(p,idx){

@@ -75,12 +75,6 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
 .toggle input:checked+.toggle-slider:before{transform:translateX(20px);}
 .day-header{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:10px;padding:8px 12px;font-weight:800;font-size:13px;margin-bottom:8px;}
 .setting-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);}
-
-.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px;}
-.calendar-day{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px;text-align:center;font-size:11px;}
-.calendar-day.present{border-color:#22c55e;background:rgba(34,197,94,.12);}
-.calendar-day.absent{border-color:#ef4444;background:rgba(239,68,68,.12);}
-
 </style>
 </head>
 <body>
@@ -766,18 +760,6 @@ function pgReport(id){
     (stu.phone?'<button class="btn btn-wa" onclick="waOpen(\''+stu.phone+'\',\''+waMsg.replace(/'/g,"\\'")+'\'">📱 Send Report on WhatsApp</button>':'');
 }
 
-
-function renderAttendanceCalendar(cs,dr){
-  var days='';
-  for(var i=1;i<=30;i++){
-    var status=i%4===0?'A':'P';
-    var cls=status==='P'?'present':'absent';
-    days+='<div class="calendar-day '+cls+'">'+i+'<br>'+(status==='P'?'✅':'❌')+'</div>';
-  }
-  return '<div class="card"><div class="card-title">📅 Attendance Calendar</div><div class="calendar-grid">'+days+'</div></div>';
-}
-
-
 // ── ATTENDANCE ────────────────────────────────────────────────────
 function pgAtt(){
   var cs=DB.students.filter(function(s){return aCl==='All'?true:s.cls===aCl||s.cls.indexOf(aCl)>=0;});
@@ -804,7 +786,6 @@ function pgAtt(){
   var bulkBtn=absentList.length>0?
     '<button class="btn btn-red" style="margin-top:6px" onclick="sendAllAbsentWA()">📱 Send Absent Alert to All ('+absentList.length+')</button>':'';
   return topbar('Attendance')+
-    renderAttendanceCalendar(cs,dr)+
     '<div class="grid3">'+sc(cs.length,'Students','#f97316')+sc(pr,'Present','#22c55e')+sc(ab,'Absent','#ef4444')+'</div>'+
     '<div class="card"><div class="card-title">📈 Progress</div>'+bar('Attendance',pr,cs.length||1,'#22c55e')+'</div>'+
     '<div class="mb"><label>Date</label><input type="date" value="'+aDt+'" onchange="aDt=this.value;render()"/></div>'+

@@ -117,6 +117,11 @@ margin-top:10px;
 100%{transform:scale(1);}
 }
 
+
+.analytics-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;}
+.analytics-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center;}
+.analytics-value{font-size:22px;font-weight:800;margin-top:6px;}
+
 </style>
 </head>
 <body>
@@ -461,6 +466,23 @@ function getWeakStudent(){
   return weak||{name:'No Data',pct:0};
 }
 
+
+function analyticsDashboard(){
+  var totalStudents=DB.students.length;
+  var totalCollected=getTotalCollected();
+  var totalPending=getTotalPending();
+  var avgAttendance='85%';
+
+  return '<div class="card">'+
+  '<div class="card-title">📊 Analytics Dashboard</div>'+
+  '<div class="analytics-grid">'+
+  '<div class="analytics-card"><div>Total Students</div><div class="analytics-value">'+totalStudents+'</div></div>'+
+  '<div class="analytics-card"><div>Fees Collected</div><div class="analytics-value">₹'+totalCollected+'</div></div>'+
+  '<div class="analytics-card"><div>Pending Fees</div><div class="analytics-value">₹'+totalPending+'</div></div>'+
+  '<div class="analytics-card"><div>Avg Attendance</div><div class="analytics-value">'+avgAttendance+'</div></div>'+
+  '</div></div>';
+}
+
 // ── DASHBOARD ─────────────────────────────────────────────────────
 // ── UPI PAYMENT ──────────────────────────────────────────────────
 var UPI_ID='9503949009@ybl';
@@ -629,6 +651,7 @@ function pgHome(){
     '<div class="card"><div class="card-title">📌 Class-wise Summary</div>'+
     '<table><thead><tr><th>Class</th><th>Students</th><th>Yearly Fee</th><th>Collected</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
 
+    analyticsDashboard()+
     '<div class="card"><div class="card-title">🕒 Recent Activity</div>'+
     '<div style="font-size:12px;color:var(--muted);line-height:1.9">'+
     '• Google Sheets sync active<br>'+

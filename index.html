@@ -85,6 +85,10 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
 .broadcast-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px;}
 .broadcast-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
 
+
+.material-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px;}
+.material-item{padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--bg);}
+
 </style>
 </head>
 <body>
@@ -837,6 +841,39 @@ function bulkWhatsApp(type){
   toast('Bulk message ready: '+msg,false);
 }
 
+
+function materialsManager(){
+  var mats=DB.materials||[];
+  var items=mats.length?mats.map(function(m){
+    return '<div class="material-item"><div style="font-weight:700">'+m.title+'</div><div style="font-size:11px;color:var(--muted)">'+m.cls+' · '+m.type+'</div></div>';
+  }).join(''):'<div class="empty">No materials uploaded yet.</div>';
+
+  return '<div class="material-card">'+
+  '<div class="card-title">📚 Study Material Manager</div>'+
+  '<input id="mat-title" placeholder="Material Title" style="margin-bottom:8px"/>'+
+  '<select id="mat-class" style="margin-bottom:8px">'+
+  CL_FULL.map(function(c){return '<option>'+c+'</option>';}).join('')+
+  '</select>'+
+  '<select id="mat-type" style="margin-bottom:8px">'+
+  '<option>PDF</option><option>Video</option><option>Notes</option>'+
+  '</select>'+
+  '<button class="btn btn-orange" onclick="addMaterial()">Upload Material</button>'+
+  '<div style="margin-top:12px">'+items+'</div>'+
+  '</div>';
+}
+
+function addMaterial(){
+  var t=document.getElementById('mat-title');
+  var c=document.getElementById('mat-class');
+  var ty=document.getElementById('mat-type');
+  if(!t.value.trim()){toast('Enter title!',true);return;}
+  DB.materials=DB.materials||[];
+  DB.materials.push({title:t.value,cls:c.value,type:ty.value});
+  dbSWithSync();
+  render();
+  toast('Material Added!',false);
+}
+
 // ── ATTENDANCE ────────────────────────────────────────────────────
 function pgAtt(){
   var cs=DB.students.filter(function(s){return aCl==='All'?true:s.cls===aCl||s.cls.indexOf(aCl)>=0;});
@@ -1237,6 +1274,7 @@ function sendResults(){
 // ── MORE ──────────────────────────────────────────────────────────
 function pgMore(){
   return topbar('More')+
+    materialsManager()+
     '<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">'+
     '<button class="btn '+(moreTab==='notices'?'btn-orange':'btn-gray')+'" style="margin-top:0;flex:1;padding:9px;font-size:12px" onclick="moreTab=\'notices\';render()">📢 Notices</button>'+
     '<button class="btn '+(moreTab==='materials'?'btn-orange':'btn-gray')+'" style="margin-top:0;flex:1;padding:9px;font-size:12px" onclick="moreTab=\'materials\';render()">📝 Notes</button>'+

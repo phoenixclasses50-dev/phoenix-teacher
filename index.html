@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#f97316"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-title" content="Phoenix Classes"/>
-<title>Phoenix Classes Teacher v1.0</title>
+<title>Phoenix Classes</title>
 <style>
 :root{--bg:#0a0d14;--card:#111827;--border:#1f2937;--text:#f1f5f9;--muted:#6b7280;--accent:#f97316;--accent2:#ea580c;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#8b5cf6;--yellow:#eab308;}
 .light{--bg:#f8fafc;--card:#ffffff;--border:#e2e8f0;--text:#0f172a;--muted:#64748b;}
@@ -78,20 +78,6 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
 </style>
 </head>
 <body>
-<div id="version-badge" style="
-position:fixed;
-top:8px;
-left:8px;
-background:#f97316;
-color:white;
-padding:4px 10px;
-border-radius:20px;
-font-size:10px;
-font-weight:bold;
-z-index:9999;
-opacity:.9;">
-Teacher v1.0
-</div>
 <div class="main" id="app">Loading...</div>
 <iframe name="hidden_iframe" style="display:none"></iframe>
 <div class="bottom-nav">
@@ -499,7 +485,14 @@ function miniChart(sid,cls){
 
 function pgHome(){
   var tp=0,total=0;
-  for(var i=0;i<CL.length;i++){var r=DB.attendance[aDt+'_'+CL[i]]||{};for(var k in r){total++;if(r[k]==='P')tp++;}}
+  for(var i=0;i<CL.length;i++){
+    var r=DB.attendance[aDt+'_'+CL[i]]||{};
+    for(var k in r){
+      total++;
+      if(r[k]==='P')tp++;
+    }
+  }
+
   var rows='';
   for(var i=0;i<CL.length;i++){
     var c=CL[i];
@@ -507,32 +500,61 @@ function pgHome(){
     var clsStudents=DB.students.filter(function(s){return s.cls.indexOf(c)>=0;});
     var totalFee=clsStudents.reduce(function(sum,s){return sum+getYearlyFee(s.cls,s.subject);},0);
     var collected=clsStudents.reduce(function(sum,s){return sum+getTotalPaid(s.id);},0);
-    var fee=totalFee;
-    rows+='<tr><td style="font-weight:700">'+c+'</td><td style="font-weight:700;color:var(--accent)">'+cnt+'</td><td>₹'+fee+'</td><td style="color:var(--green);font-weight:700">₹'+collected+'</td></tr>';
+
+    rows+='<tr><td style="font-weight:700">'+c+'</td><td style="font-weight:700;color:var(--accent)">'+cnt+'</td><td>₹'+totalFee+'</td><td style="color:var(--green);font-weight:700">₹'+collected+'</td></tr>';
   }
-  // Attendance alerts
-  var alerts=alertStudents();
-  var alertHtml='';
-  if(alerts.length>0){
-    alertHtml='<div class="card" style="border-color:#ef4444;background:rgba(239,68,68,0.05)">'+
-      '<div class="card-title" style="color:#ef4444">🎯 Attendance Alert — '+alerts.length+' Students Below 75%</div>'+
-      alerts.map(function(s){
-        var pct=getAttPct(s.id,s.cls);
-        var waMsg='Dear Parent,\n\nAttendance Alert for *'+s.name+'* ('+s.cls+')\n\nCurrent Attendance: *'+pct+'%*\nMinimum Required: 75%\n\nPlease ensure regular attendance.\n\nRegards,\nPhoenix Classes';
-        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'+
-          '<div><div style="font-weight:700;font-size:13px">'+esc(s.name)+'</div>'+
-          '<div style="font-size:11px;color:var(--muted)">'+s.cls+' · Attendance: <span style="color:#ef4444;font-weight:800">'+pct+'%</span></div></div>'+
-          (s.phone?'<button class="btn-sm" style="background:#25d366;flex-shrink:0" onclick="waOpen(\''+s.phone+'\',\''+waMsg.replace(/'/g,"\\'").replace(/\n/g,'\\n')+'\')">📱 Alert</button>':'<span style="font-size:11px;color:var(--muted)">No phone</span>')+
-          '</div>';
-      }).join('')+'</div>';
-  }
-  return topbar('Phoenix Classes')+
-    '<div class="app-header"><div style="display:flex;align-items:center;gap:12px">'+logoSVG+'<div><div class="app-header-title">Phoenix Classes</div><div class="app-header-sub">Maharashtra Board · Class 8–10</div><div style="font-size:10px;color:#fed7aa;letter-spacing:2px;margin-top:2px">Learn · Think · Grow</div></div></div></div>'+
-    alertHtml+
-    '<div class="grid2">'+sc(DB.students.length,'Total Students','#f97316')+sc(tp+'/'+total,'Present Today','#22c55e')+sc('₹'+getTotalCollected(),'Fee Collected','#eab308')+sc('₹'+getTotalPending(),'Fee Pending','#ef4444')+'</div>'+
-    '<div class="card"><div class="card-title">📈 Today\'s Attendance</div>'+bar('Attendance',tp,total||1,'#22c55e')+'</div>'+
+
+  return topbar('Teacher Dashboard')+
+    '<div class="app-header"><div style="display:flex;align-items:center;gap:12px">'+logoSVG+
+    '<div><div class="app-header-title">Phoenix Classes Teacher</div>'+
+    '<div class="app-header-sub">Premium Dashboard Control Panel</div>'+
+    '<div style="font-size:10px;color:#fed7aa;letter-spacing:2px;margin-top:2px">Manage · Track · Grow</div>'+
+    '</div></div></div>'+
+
+    '<div class="card" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none">'+
+    '<div style="font-size:18px;font-weight:800">👋 Welcome Back Teacher</div>'+
+    '<div style="font-size:12px;opacity:.9;margin-top:4px">Manage students, attendance, marks & fees easily.</div>'+
+    '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">'+
+    '<div style="background:rgba(255,255,255,.15);padding:8px 12px;border-radius:12px;font-size:11px">📚 Students: '+DB.students.length+'</div>'+
+    '<div style="background:rgba(255,255,255,.15);padding:8px 12px;border-radius:12px;font-size:11px">💰 Collection: ₹'+getTotalCollected()+'</div>'+
+    '</div></div>'+
+
+    '<div class="card">'+
+    '<div class="card-title">⚡ Quick Actions</div>'+
+    '<div class="grid2">'+
+    '<button class="btn btn-orange" onclick="go(\'students\')">➕ Add Student</button>'+
+    '<button class="btn btn-green" onclick="go(\'attendance\')">📋 Attendance</button>'+
+    '<button class="btn btn-blue" onclick="go(\'marks\')">📊 Add Marks</button>'+
+    '<button class="btn btn-purple" onclick="go(\'fees\')">💰 Fees</button>'+
+    '</div></div>'+
+
+    '<div class="grid2">'+
+    sc(DB.students.length,'Total Students','#f97316')+
+    sc(tp+'/'+total,'Present Today','#22c55e')+
+    sc('₹'+getTotalCollected(),'Fee Collected','#eab308')+
+    sc('₹'+getTotalPending(),'Fee Pending','#ef4444')+
+    '</div>'+
+
+    '<div class="card"><div class="card-title">📈 Today Attendance</div>'+
+    bar('Attendance',tp,total||1,'#22c55e')+'</div>'+
+
+    '<div class="card" style="border-left:4px solid #ef4444">'+
+    '<div class="card-title">🚨 Important Alerts</div>'+
+    '<div style="font-size:12px;color:var(--text)">Pending Fees: ₹'+getTotalPending()+'</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-top:6px">Students with pending fees require follow-up.</div>'+
+    '</div>'+
+
     '<div class="card"><div class="card-title">📌 Class-wise Summary</div>'+
     '<table><thead><tr><th>Class</th><th>Students</th><th>Yearly Fee</th><th>Collected</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+
+    '<div class="card"><div class="card-title">🕒 Recent Activity</div>'+
+    '<div style="font-size:12px;color:var(--muted);line-height:1.9">'+
+    '• Google Sheets sync active<br>'+
+    '• Student database connected<br>'+
+    '• Fee tracking enabled<br>'+
+    '• Teacher dashboard upgraded'+
+    '</div></div>'+
+
     '<div class="card" style="border-color:var(--accent)"><div class="card-title">☁️ Backup</div>'+
     '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">Download backup daily to keep data safe.</div>'+
     '<div class="grid2" style="margin-bottom:0"><button class="btn btn-green" style="margin-top:0" onclick="exportData()">📥 Backup</button>'+

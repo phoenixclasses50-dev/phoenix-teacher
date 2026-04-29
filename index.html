@@ -733,6 +733,17 @@ function pgReport(id){
     '<div>'+photoEl(stu.id,stu.name)+'</div>'+
     '<div><div style="font-size:17px;font-weight:800;color:#fff">'+esc(stu.name)+'</div>'+
     '<div style="font-size:11px;color:#fed7aa">'+stu.cls+' · '+stu.subject+'</div></div>'+
+    '<div class="card" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center">'+
+    '<div><div style="font-size:18px;font-weight:800">'+esc(stu.name)+'</div>'+
+    '<div style="font-size:12px;opacity:.85">'+stu.cls+' · '+stu.subject+'</div></div>'+
+    '<div style="font-size:40px">🎓</div></div></div>'+
+    '<div class="card">'+
+    '<div class="card-title">📱 Quick Actions</div>'+
+    '<div class="grid2">'+
+    '<button class="btn btn-wa" onclick="waOpen(\''+stu.phone+'\',\'Hello Parent from Phoenix Classes\')">WhatsApp Parent</button>'+
+    '<button class="btn btn-blue" onclick="sendReportWA('+stu.id+')">Send Report</button>'+
+    '</div></div>'+
     '<div style="margin-left:auto;text-align:center"><div style="font-size:40px;font-weight:800;color:#fff;line-height:1">'+ovG+'</div><div style="font-size:10px;color:#fed7aa">Grade</div></div>'+
     '</div></div>'+
     '<div class="grid3">'+sc(ovPct+'%','Avg Score',gc2)+sc(attPct+'%','Attendance','#22c55e')+sc(balance<=0?'Paid':'₹'+balance,balance<=0?'Fee Clear':'Balance','#eab308')+'</div>'+

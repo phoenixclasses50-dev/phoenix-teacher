@@ -139,53 +139,47 @@ function syncToSheets(){
 
 function loadFromSheets(){
   showSyncBar('☁️ Loading from Google Sheets...',false);
-  var cbName='loadCb'+Date.now();
-  var script=document.createElement('script');
-  var done=false;
-  window[cbName]=function(d){
-    done=true;
-    delete window[cbName];
-    try{document.head.removeChild(script);}catch(e){}
-    try{
-      if(d&&d.status==='ok'&&d.data){
-        var ld=d.data;
-        DB.students=ld.students||[];
-        DB.attendance=ld.attendance||{};
-        DB.marks=ld.marks||{tests:[],data:{}};
-        if(ld.fees){
-          if(!ld.fees.classFee)ld.fees.classFee={'Class 8':3000,'Class 9':3500,'Class 10':4000};
-          if(!ld.fees.payments)ld.fees.payments={};
-          DB.fees=ld.fees;
-        }
-        // Only update notices if Sheets has data — never delete local notices
-        if(ld.notices&&ld.notices.length>0){
-          DB.notices=ld.notices;
-        } else if(!DB.notices){
-          DB.notices=[];
-        }
-        if(ld.schedule)DB.schedule=ld.schedule;
-        if(ld.starStudent!==undefined)DB.starStudent=ld.starStudent;
-        if(ld.remarks)DB.remarks=ld.remarks;
-        if(ld.materials)DB.materials=ld.materials;else if(!DB.materials)DB.materials=[];
-        dbS();render();
-        showSyncBar('✅ Synced! '+DB.students.length+' students.',false);
-      }else{
-        showSyncBar('⚠️ No data in Sheets.',false);
+
+  fetch(API_URL + '?action=load')
+  .then(r=>r.json())
+  .then(ld=>{
+
+    DB.students=ld.students||[];
+    DB.attendance=ld.attendance||{};
+    DB.marks=ld.marks||{tests:[],data:{}};
+
+    if(ld.fees){
+      if(!ld.fees.classFee){
+        ld.fees.classFee={
+          'Class 8':3000,
+          'Class 9':3500,
+          'Class 10':4000
+        };
       }
-    }catch(e){showSyncBar('❌ Parse error: '+e.message,true);}
-  };
-  script.src=API_URL+'?action=load&callback='+cbName+'&t='+Date.now();
-  script.onerror=function(){
-    if(!done){delete window[cbName];showSyncBar('❌ Load failed.',true);}
-  };
-  setTimeout(function(){
-    if(!done){
-      delete window[cbName];
-      try{document.head.removeChild(script);}catch(e){}
-      showSyncBar('❌ Timeout. Try again.',true);
+
+      if(!ld.fees.payments){
+        ld.fees.payments={};
+      }
+
+      DB.fees=ld.fees;
     }
-  },20000);
-  document.head.appendChild(script);
+
+    if(ld.notices) DB.notices=ld.notices;
+    if(ld.schedule) DB.schedule=ld.schedule;
+    if(ld.starStudent!==undefined) DB.starStudent=ld.starStudent;
+    if(ld.remarks) DB.remarks=ld.remarks;
+    if(ld.materials) DB.materials=ld.materials;
+
+    dbS();
+    render();
+
+    showSyncBar('✅ Loaded from Google Sheets!',false);
+
+  })
+  .catch(err=>{
+    console.log(err);
+    showSyncBar('❌ Load Failed',true);
+  });
 }
 
 function showSyncBar(msg,err){

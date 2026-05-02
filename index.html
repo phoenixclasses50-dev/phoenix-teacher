@@ -241,13 +241,6 @@ function loadFromSheets(){
       if(d&&d.status==='ok'&&d.data){
         var ld=d.data;
         DB.students=ld.students||[];
-        
-        // Remove duplicate students
-DB.students = DB.students.filter(function(student, index, self){
-  return index === self.findIndex(function(s){
-    return s.id === student.id;
-  });
-});
         DB.attendance=ld.attendance||{};
         DB.marks=ld.marks||{tests:[],data:{}};
         if(ld.fees){
@@ -712,13 +705,7 @@ function aStu(){
   if(!n||!n.value.trim()){toast('Please enter student name!',true);return;}
   var clsFull=c.value+' '+med.value;
   var newStu={id:Date.now(),name:n.value.trim(),cls:clsFull,subject:s.value,phone:p?p.value:''};
-  var exists = DB.students.some(function(st){
-  return st.id === newStu.id;
-});
-
-if(!exists){
   DB.students.push(newStu);
-};
   dbSWithSync();render();toast('Student added successfully! 🎉',false);
   // Send WhatsApp greeting if phone exists
   if(newStu.phone&&newStu.phone.length>=10){
@@ -1490,47 +1477,6 @@ window.onload=function(){
   // Load from Google Sheets on startup — Sheets is the master
   setTimeout(function(){loadFromSheets();},800);
 };
-// ── APP STARTUP FIX ─────────────────────────────
-window.addEventListener('load', function () {
-  try {
-    
-    dbL();
-
-    DB.students = DB.students.filter(function(student, index, self){
-  return index === self.findIndex(function(s){
-    return s.id === student.id;
-  });
-});
-dbS();
-    
-    initDate();
-    applyTheme();
-    render();
-
-    // Load data from sheets after UI render
-    setTimeout(function () {
-      loadFromSheets();
-    }, 1000);
-
-    // Hide splash screen
-    setTimeout(function () {
-      var splash = document.getElementById('splash');
-      if (splash) {
-        splash.classList.add('hide');
-        setTimeout(function () {
-          splash.remove();
-        }, 500);
-      }
-    }, 2500);
-
-  } catch (e) {
-    console.error('Startup Error:', e);
-
-    // Force remove splash even if error
-    var splash = document.getElementById('splash');
-    if (splash) splash.style.display = 'none';
-  }
-});
 </script>
 </body>
 </html>

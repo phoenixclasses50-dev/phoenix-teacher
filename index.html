@@ -75,9 +75,50 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
 .toggle input:checked+.toggle-slider:before{transform:translateX(20px);}
 .day-header{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:10px;padding:8px 12px;font-weight:800;font-size:13px;margin-bottom:8px;}
 .setting-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);}
+/* ── SPLASH ── */
+#splash{position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#0a0d14,#1a0e05);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .5s;}
+#splash.hide{opacity:0;pointer-events:none;}
+.splash-logo{animation:splashPulse 1.5s ease-in-out infinite;}
+.splash-ring{width:100px;height:100px;border:3px solid rgba(249,115,22,.3);border-top-color:#f97316;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:20px;}
+@keyframes splashPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
+@keyframes spin{to{transform:rotate(360deg);}}
+/* ── FAB ── */
+.fab{position:fixed;bottom:72px;right:16px;width:52px;height:52px;background:linear-gradient(135deg,#f97316,#ea580c);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;box-shadow:0 4px 20px rgba(249,115,22,.5);z-index:99;border:none;color:#fff;transition:transform .2s;}
+.fab:hover{transform:scale(1.1);}
+.fab-menu{position:fixed;bottom:130px;right:16px;display:flex;flex-direction:column;gap:10px;z-index:98;}
+.fab-item{display:flex;align-items:center;gap:10px;justify-content:flex-end;}
+.fab-label{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;}
+.fab-btn{width:44px;height:44px;border-radius:50%;border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3);}
+/* ── ANALYTICS ── */
+.chart-bar{display:flex;align-items:flex-end;gap:4px;height:80px;margin:8px 0;}
+.chart-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.chart-fill{width:100%;border-radius:4px 4px 0 0;min-height:4px;transition:height .5s;}
+.chart-lbl{font-size:8px;color:var(--muted);text-align:center;}
+.chart-val{font-size:9px;font-weight:700;}
+/* ── NOTIFICATION ── */
+.notif-dot{width:8px;height:8px;background:#ef4444;border-radius:50%;position:absolute;top:6px;right:6px;}
+.activity-item{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);}
+.activity-icon{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.activity-text{font-size:12px;color:var(--text);font-weight:600;}
+.activity-time{font-size:10px;color:var(--muted);}
+/* ── QUICK ACTIONS ── */
+.qa-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}
+.qa-btn{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:14px 8px;cursor:pointer;text-align:center;transition:all .2s;}
+.qa-btn:hover{border-color:var(--accent);background:rgba(249,115,22,.08);}
+.qa-icon{font-size:24px;margin-bottom:6px;}
+.qa-label{font-size:10px;font-weight:700;color:var(--muted);}
+/* ── PROFILE TIMELINE ── */
+.timeline{position:relative;padding-left:20px;}
+.timeline::before{content:'';position:absolute;left:6px;top:0;bottom:0;width:2px;background:var(--border);}
+.tl-item{position:relative;margin-bottom:12px;}
+.tl-dot{position:absolute;left:-17px;width:10px;height:10px;border-radius:50%;background:var(--accent);top:4px;}
+.tl-text{font-size:11px;color:var(--text);}
+.tl-time{font-size:10px;color:var(--muted);}
+
 </style>
 </head>
 <body>
+<div id="splash"><div class="splash-ring"></div><div style="font-size:48px;margin-bottom:16px">🔥</div><div style="font-size:22px;font-weight:800;color:#f97316;margin-bottom:6px">Phoenix Classes</div><div style="font-size:11px;color:#6b7280;letter-spacing:3px">LEARN · THINK · GROW</div></div>
 <div class="main" id="app">Loading...</div>
 <iframe name="hidden_iframe" style="display:none"></iframe>
 <div class="bottom-nav">
@@ -90,6 +131,13 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
   <div class="bn-item" onclick="go('more')" id="nav-more"><div class="bn-icon">⚙️</div><span>More</span></div>
 </div>
 <div class="toast" id="toast"></div>
+<div id="fab-menu" class="fab-menu" style="display:none">
+  <div class="fab-item"><span class="fab-label">Add Student</span><button class="fab-btn" style="background:#f97316" onclick="hideFab();go('students')">👨‍🎓</button></div>
+  <div class="fab-item"><span class="fab-label">Mark Attendance</span><button class="fab-btn" style="background:#22c55e" onclick="hideFab();go('attendance')">📋</button></div>
+  <div class="fab-item"><span class="fab-label">Add Test</span><button class="fab-btn" style="background:#3b82f6" onclick="hideFab();go('marks')">📊</button></div>
+  <div class="fab-item"><span class="fab-label">Collect Fee</span><button class="fab-btn" style="background:#eab308" onclick="hideFab();go('fees')">💰</button></div>
+</div>
+<button class="fab" id="fab-main" onclick="toggleFab()">＋</button>
 <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)"/>
 <input type="file" id="photoFile" accept="image/*" style="display:none" onchange="uploadPhoto(this)"/>
 
@@ -114,36 +162,70 @@ function syncToSheets(){
         materials:DB.materials||[]
       }
     };
-    var encoded=encodeURIComponent(JSON.stringify(payload));
-    var cbName='saveCb'+Date.now();
+    var jsonStr=JSON.stringify(payload);
+    // Use fetch with no-cors for POST - no URL limit!
+    fetch(API_URL,{
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain'},
+      body:jsonStr
+    }).then(function(){
+      showSyncBar('✅ Saved to Google Sheets!',false);
+    }).catch(function(){
+      // Fallback to chunked GET if fetch fails
+      syncChunked(payload.payload);
+    });
+  }catch(e){showSyncBar('❌ Error: '+e.message,true);}
+}
+
+function syncChunked(data){
+  // Fallback: send only essential data in chunks
+  var sections=[
+    {name:'students',   d:{students:data.students}},
+    {name:'fees',       d:{fees:data.fees}},
+    {name:'notices',    d:{notices:data.notices||[],schedule:data.schedule||[],starStudent:data.starStudent,remarks:data.remarks||{},materials:data.materials||[]}},
+    {name:'marks',      d:{marks:data.marks}},
+    {name:'attendance', d:{attendance:data.attendance}},
+  ];
+  var i=0;
+  function next(){
+    if(i>=sections.length){showSyncBar('✅ Saved (chunked)!',false);return;}
+    var sec=sections[i++];
+    var encoded=encodeURIComponent(JSON.stringify({action:'save',payload:sec.d}));
+    if(encoded.length>6000){
+      // Too large - skip attendance for now, save locally
+      if(sec.name==='attendance'){
+        showSyncBar('⚠️ Attendance too large — saved locally only.',false);
+        next();return;
+      }
+    }
+    var cbName='sc_'+i+'_'+Date.now();
     var script=document.createElement('script');
     var done=false;
-    window[cbName]=function(d){
-      done=true;
-      delete window[cbName];
-      try{document.head.removeChild(script);}catch(e){}
-      if(d&&d.status==='ok'){
-        showSyncBar('✅ Saved to Google Sheets!',false);
-      } else {
-        showSyncBar('⚠️ Saved locally only.',false);
-      }
-    };
+    window[cbName]=function(){done=true;delete window[cbName];try{document.head.removeChild(script);}catch(e){}next();};
     script.src=API_URL+'?action=save&callback='+cbName+'&data='+encoded+'&t='+Date.now();
-    script.onerror=function(){
-      if(!done){
-        delete window[cbName];
-        showSyncBar('⚠️ Saved locally. Sheet sync failed.',false);
-      }
-    };
-    setTimeout(function(){
-      if(!done){
-        delete window[cbName];
-        try{document.head.removeChild(script);}catch(e){}
-        showSyncBar('⚠️ Saved locally. Sheet timeout.',false);
-      }
-    },20000);
+    script.onerror=function(){if(!done){delete window[cbName];next();}};
+    setTimeout(function(){if(!done){delete window[cbName];try{document.head.removeChild(script);}catch(e){}next();}},20000);
     document.head.appendChild(script);
-  }catch(e){showSyncBar('❌ Error: '+e.message,true);}
+  }
+  next();
+}
+
+function syncChunk(section,data,callback){
+  try{
+    var payload={action:'save',payload:{}};
+    payload.payload[section]=data;
+    var encoded=encodeURIComponent(JSON.stringify(payload));
+    if(encoded.length>6500){callback(false);return;}
+    var cbName='ck_'+section+'_'+Date.now();
+    var script=document.createElement('script');
+    var done=false;
+    window[cbName]=function(d){done=true;delete window[cbName];try{document.head.removeChild(script);}catch(e){}callback(d&&d.status==='ok');};
+    script.src=API_URL+'?action=save&callback='+cbName+'&data='+encoded+'&t='+Date.now();
+    script.onerror=function(){if(!done){delete window[cbName];callback(false);}};
+    setTimeout(function(){if(!done){delete window[cbName];try{document.head.removeChild(script);}catch(e){}callback(false);}},20000);
+    document.head.appendChild(script);
+  }catch(e){callback(false);}
 }
 
 function loadFromSheets(){

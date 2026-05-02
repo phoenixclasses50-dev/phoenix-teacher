@@ -146,6 +146,9 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
 var API_URL='https://script.google.com/macros/s/AKfycbw_n1ucp7EZWpEZTgG50qcp7s_BucHGiDMigwGKbPO2Tzut3mQAPlkAc8YN0WIUxzpD/exec';
 
 function syncToSheets(){
+  // Prevent concurrent saves — causes duplicate entries in Google Sheets
+  if(window._syncingToSheets){return;}
+  window._syncingToSheets=true;
   showSyncBar('☁️ Saving to Google Sheets...',false);
   try{
     var payload={
@@ -163,19 +166,23 @@ function syncToSheets(){
       }
     };
     var jsonStr=JSON.stringify(payload);
-    // Use fetch with no-cors for POST - no URL limit!
+    // IMPORTANT: no-cors POST — DO NOT call syncChunked as fallback
+    // syncChunked sends 5 separate API calls = 4-5 duplicate rows in Google Sheets
     fetch(API_URL,{
       method:'POST',
       mode:'no-cors',
       headers:{'Content-Type':'text/plain'},
       body:jsonStr
     }).then(function(){
+      window._syncingToSheets=false;
       showSyncBar('✅ Saved to Google Sheets!',false);
-    }).catch(function(){
-      // Fallback to chunked GET if fetch fails
-      syncChunked(payload.payload);
+    }).catch(function(err){
+      // syncChunked is DISABLED — it sent 5 separate API calls causing 4-5 duplicate rows
+      window._syncingToSheets=false;
+      showSyncBar('⚠️ Sync issue — data saved locally.',false);
+      console.warn('syncToSheets POST error:',err);
     });
-  }catch(e){showSyncBar('❌ Error: '+e.message,true);}
+  }catch(e){window._syncingToSheets=false;showSyncBar('❌ Error: '+e.message,true);}
 }
 
 function syncChunked(data){
@@ -189,7 +196,7 @@ function syncChunked(data){
   ];
   var i=0;
   function next(){
-    if(i>=sections.length){showSyncBar('✅ Saved (chunked)!',false);return;}
+    if(i>=sections.length){window._syncingToSheets=false;showSyncBar('✅ Saved (chunked)!',false);return;}
     var sec=sections[i++];
     var encoded=encodeURIComponent(JSON.stringify({action:'save',payload:sec.d}));
     if(encoded.length>6000){
@@ -229,12 +236,16 @@ function syncChunk(section,data,callback){
 }
 
 function loadFromSheets(){
+  // Prevent concurrent loads (race condition / double-load fix)
+  if(window._loadingFromSheets){return;}
+  window._loadingFromSheets=true;
   showSyncBar('☁️ Loading from Google Sheets...',false);
   var cbName='loadCb'+Date.now();
   var script=document.createElement('script');
   var done=false;
   window[cbName]=function(d){
     done=true;
+    window._loadingFromSheets=false;
     delete window[cbName];
     try{document.head.removeChild(script);}catch(e){}
     try{
@@ -267,10 +278,11 @@ function loadFromSheets(){
   };
   script.src=API_URL+'?action=load&callback='+cbName+'&t='+Date.now();
   script.onerror=function(){
-    if(!done){delete window[cbName];showSyncBar('❌ Load failed.',true);}
+    if(!done){window._loadingFromSheets=false;delete window[cbName];showSyncBar('❌ Load failed.',true);}
   };
   setTimeout(function(){
     if(!done){
+      window._loadingFromSheets=false;
       delete window[cbName];
       try{document.head.removeChild(script);}catch(e){}
       showSyncBar('❌ Timeout. Try again.',true);
@@ -289,7 +301,10 @@ function showSyncBar(msg,err){
 function dbSWithSync(){
   dbS();
   clearTimeout(window._syncTimer);
-  window._syncTimer=setTimeout(function(){syncToSheets();},2000);
+  window._syncTimer=setTimeout(function(){
+    window._syncingToSheets=false; // Allow new sync after debounce
+    syncToSheets();
+  },3000); // 3 sec debounce — batches multiple attendance clicks into one sync
 }
 
 // ── DB ────────────────────────────────────────────────────────────
@@ -866,7 +881,12 @@ function sendAllAbsentWA(){
 }
 
 function mAtt(id,s){
-  var k=aDt+'_'+aCl;
+  // CRITICAL FIX: Never save under 'All' key — use student's real class
+  var stuCls=aCl;
+  if(stuCls==='All'){
+    for(var xi=0;xi<DB.students.length;xi++){if(DB.students[xi].id===id){stuCls=DB.students[xi].cls;break;}}
+  }
+  var k=aDt+'_'+stuCls;
   if(!DB.attendance[k])DB.attendance[k]={};
   DB.attendance[k][id]=s;
   dbSWithSync();render();
@@ -883,7 +903,21 @@ function mAtt(id,s){
     }
   }
 }
-function mAll(s){var k=aDt+'_'+aCl;DB.attendance[k]={};DB.students.filter(function(x){return x.cls===aCl||x.cls.indexOf(aCl)>=0;}).forEach(function(x){DB.attendance[k][x.id]=s;});dbSWithSync();render();toast(s==='P'?'All Present!':'All Absent!',false);}
+function mAll(s){
+  // Fix: when aCl is 'All', group students by their real class
+  if(aCl==='All'){
+    DB.students.forEach(function(x){
+      var k=aDt+'_'+x.cls;
+      if(!DB.attendance[k])DB.attendance[k]={};
+      DB.attendance[k][x.id]=s;
+    });
+  } else {
+    var k=aDt+'_'+aCl;
+    if(!DB.attendance[k])DB.attendance[k]={};
+    DB.students.filter(function(x){return x.cls===aCl||x.cls.indexOf(aCl)>=0;}).forEach(function(x){DB.attendance[k][x.id]=s;});
+  }
+  dbSWithSync();render();toast(s==='P'?'All Present!':'All Absent!',false);
+}
 function setAC(c){aCl=c;render();}
 
 // ── MARKS ─────────────────────────────────────────────────────────
@@ -1469,15 +1503,7 @@ function render(){
     document.getElementById('app').innerHTML='<div class="card" style="color:#ef4444;padding:20px"><b>Error:</b> '+ex.message+'<br><button class="btn btn-orange" onclick="render()" style="margin-top:10px">Retry</button></div>';
   }
 }
-window.onload=function(){
-  dbL();
-  initDate();
-  applyTheme();
-  render();
-  // Load from Google Sheets on startup — Sheets is the master
-  setTimeout(function(){loadFromSheets();},800);
-};
-  // ── APP STARTUP FIX ─────────────────────────────
+// ── APP STARTUP (single init — duplicate removed to fix double-load bug) ──
 window.addEventListener('load', function () {
   try {
     dbL();
@@ -1485,10 +1511,10 @@ window.addEventListener('load', function () {
     applyTheme();
     render();
 
-    // Load data from sheets after UI render
+    // Load data from Google Sheets ONCE after UI render
     setTimeout(function () {
       loadFromSheets();
-    }, 1000);
+    }, 800);
 
     // Hide splash screen
     setTimeout(function () {
@@ -1503,8 +1529,6 @@ window.addEventListener('load', function () {
 
   } catch (e) {
     console.error('Startup Error:', e);
-
-    // Force remove splash even if error
     var splash = document.getElementById('splash');
     if (splash) splash.style.display = 'none';
   }

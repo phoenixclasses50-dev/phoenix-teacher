@@ -1477,6 +1477,38 @@ window.onload=function(){
   // Load from Google Sheets on startup — Sheets is the master
   setTimeout(function(){loadFromSheets();},800);
 };
+// ── APP STARTUP FIX ─────────────────────────────
+window.addEventListener('load', function () {
+  try {
+    dbL();
+    initDate();
+    applyTheme();
+    render();
+
+    // Load data from sheets after UI render
+    setTimeout(function () {
+      loadFromSheets();
+    }, 1000);
+
+    // Hide splash screen
+    setTimeout(function () {
+      var splash = document.getElementById('splash');
+      if (splash) {
+        splash.classList.add('hide');
+        setTimeout(function () {
+          splash.remove();
+        }, 500);
+      }
+    }, 2500);
+
+  } catch (e) {
+    console.error('Startup Error:', e);
+
+    // Force remove splash even if error
+    var splash = document.getElementById('splash');
+    if (splash) splash.style.display = 'none';
+  }
+});
 </script>
 </body>
 </html>

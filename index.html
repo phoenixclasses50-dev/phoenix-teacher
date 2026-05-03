@@ -155,7 +155,8 @@ function syncToSheets(){
   var sections=[
     {name:'students',   payload:{students:DB.students}},
     {name:'fees',       payload:{fees:DB.fees}},
-    {name:'misc',       payload:{notices:DB.notices||[],schedule:DB.schedule||[],starStudent:DB.starStudent||null,remarks:DB.remarks||{},materials:DB.materials||[]}},
+    {name:'notices',    payload:{notices:DB.notices||[],schedule:DB.schedule||[],starStudent:DB.starStudent||null,remarks:DB.remarks||{}}},
+    {name:'materials',  payload:{materials:DB.materials||[]}},
     {name:'marks',      payload:{marks:DB.marks}},
     {name:'attendance', payload:{attendance:DB.attendance}}
   ];
@@ -174,7 +175,7 @@ function syncToSheets(){
     var encoded=encodeURIComponent(JSON.stringify({action:'save',payload:sec.payload}));
 
     // Skip if encoded data too large (>7000 chars) — save locally only
-    if(encoded.length>7000){
+    if(encoded.length>12000){
       sendNext();
       return;
     }

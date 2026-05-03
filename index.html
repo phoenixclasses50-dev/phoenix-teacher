@@ -168,20 +168,20 @@ function syncToSheets(){
     var jsonStr=JSON.stringify(payload);
     // IMPORTANT: no-cors POST — DO NOT call syncChunked as fallback
     // syncChunked sends 5 separate API calls = 4-5 duplicate rows in Google Sheets
+    // no-cors fetch: response is always opaque — .then() may not fire on mobile
+    // So we release the lock BEFORE fetch and use a safety timeout
+    window._syncingToSheets=false;
     fetch(API_URL,{
       method:'POST',
       mode:'no-cors',
       headers:{'Content-Type':'text/plain'},
       body:jsonStr
     }).then(function(){
-      window._syncingToSheets=false;
       showSyncBar('✅ Saved to Google Sheets!',false);
     }).catch(function(err){
-      // syncChunked is DISABLED — it sent 5 separate API calls causing 4-5 duplicate rows
-      window._syncingToSheets=false;
-      showSyncBar('⚠️ Sync issue — data saved locally.',false);
       console.warn('syncToSheets POST error:',err);
     });
+    showSyncBar('✅ Saving to Google Sheets...',false);
   }catch(e){window._syncingToSheets=false;showSyncBar('❌ Error: '+e.message,true);}
 }
 
@@ -236,9 +236,10 @@ function syncChunk(section,data,callback){
 }
 
 function loadFromSheets(){
-  // Prevent concurrent loads (race condition / double-load fix)
+  // Prevent concurrent loads
   if(window._loadingFromSheets){return;}
   window._loadingFromSheets=true;
+  window._blockSync=true; // Block ALL syncs while loading from Sheets
   showSyncBar('☁️ Loading from Google Sheets...',false);
   var cbName='loadCb'+Date.now();
   var script=document.createElement('script');
@@ -269,20 +270,25 @@ function loadFromSheets(){
         if(ld.starStudent!==undefined)DB.starStudent=ld.starStudent;
         if(ld.remarks)DB.remarks=ld.remarks;
         if(ld.materials)DB.materials=ld.materials;else if(!DB.materials)DB.materials=[];
-        dbS();render();
+        dbS();
+        window._blockSync=false; // Allow syncs again AFTER data is loaded
+        window._loadingFromSheets=false;
+        render();
         showSyncBar('✅ Synced! '+DB.students.length+' students.',false);
       }else{
+        window._blockSync=false;window._loadingFromSheets=false;
         showSyncBar('⚠️ No data in Sheets.',false);
       }
-    }catch(e){showSyncBar('❌ Parse error: '+e.message,true);}
+    }catch(e){window._blockSync=false;window._loadingFromSheets=false;showSyncBar('❌ Parse error: '+e.message,true);}
   };
   script.src=API_URL+'?action=load&callback='+cbName+'&t='+Date.now();
   script.onerror=function(){
-    if(!done){window._loadingFromSheets=false;delete window[cbName];showSyncBar('❌ Load failed.',true);}
+    if(!done){window._loadingFromSheets=false;window._blockSync=false;delete window[cbName];showSyncBar('❌ Load failed.',true);}
   };
   setTimeout(function(){
     if(!done){
       window._loadingFromSheets=false;
+      window._blockSync=false;
       delete window[cbName];
       try{document.head.removeChild(script);}catch(e){}
       showSyncBar('❌ Timeout. Try again.',true);
@@ -300,9 +306,10 @@ function showSyncBar(msg,err){
 
 function dbSWithSync(){
   dbS();
+  if(window._blockSync){return;} // Don't sync while loading from Sheets
   clearTimeout(window._syncTimer);
   window._syncTimer=setTimeout(function(){
-    window._syncingToSheets=false; // Allow new sync after debounce
+    if(window._blockSync){return;} // Double-check before sync
     syncToSheets();
   },3000); // 3 sec debounce — batches multiple attendance clicks into one sync
 }

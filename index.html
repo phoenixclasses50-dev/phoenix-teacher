@@ -146,43 +146,53 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
 var API_URL='https://script.google.com/macros/s/AKfycbwGmkQGTwFoBAwYoJxtHy9SIVJSLzMJxfun3GSaqYmZrt6mLIIM1lUub1gCeDs-tgOZ/exec';
 
 function syncToSheets(){
-  // Prevent concurrent saves — causes duplicate entries in Google Sheets
   if(window._syncingToSheets){return;}
+  if(window._blockSync){return;}
   window._syncingToSheets=true;
-  showSyncBar('☁️ Saving to Google Sheets...',false);
+  showSyncBar('Saving to Google Sheets...',false);
   try{
-    var payload={
-      action:'save',
-      payload:{
-        students:DB.students,
-        attendance:DB.attendance,
-        marks:DB.marks,
-        fees:DB.fees,
-        notices:DB.notices||[],
-        schedule:DB.schedule||[],
-        starStudent:DB.starStudent||null,
-        remarks:DB.remarks||{},
-        materials:DB.materials||[]
+    var data={
+      students:DB.students,
+      attendance:DB.attendance,
+      marks:DB.marks,
+      fees:DB.fees,
+      notices:DB.notices||[],
+      schedule:DB.schedule||[],
+      starStudent:DB.starStudent||null,
+      remarks:DB.remarks||{},
+      materials:DB.materials||[]
+    };
+    var cbName='saveCb'+Date.now();
+    var script=document.createElement('script');
+    var done=false;
+    var encoded=encodeURIComponent(JSON.stringify({action:'save',payload:data}));
+    window[cbName]=function(r){
+      done=true;
+      window._syncingToSheets=false;
+      delete window[cbName];
+      try{document.head.removeChild(script);}catch(e){}
+      showSyncBar('Saved to Google Sheets!',false);
+    };
+    script.onerror=function(){
+      if(!done){
+        done=true;
+        window._syncingToSheets=false;
+        delete window[cbName];
+        showSyncBar('Sync failed - saved locally.',false);
       }
     };
-    var jsonStr=JSON.stringify(payload);
-    // IMPORTANT: no-cors POST — DO NOT call syncChunked as fallback
-    // syncChunked sends 5 separate API calls = 4-5 duplicate rows in Google Sheets
-    // no-cors fetch: response is always opaque — .then() may not fire on mobile
-    // So we release the lock BEFORE fetch and use a safety timeout
-    window._syncingToSheets=false;
-    fetch(API_URL,{
-      method:'POST',
-      mode:'no-cors',
-      headers:{'Content-Type':'text/plain'},
-      body:jsonStr
-    }).then(function(){
-      showSyncBar('✅ Saved to Google Sheets!',false);
-    }).catch(function(err){
-      console.warn('syncToSheets POST error:',err);
-    });
-    showSyncBar('✅ Saving to Google Sheets...',false);
-  }catch(e){window._syncingToSheets=false;showSyncBar('❌ Error: '+e.message,true);}
+    setTimeout(function(){
+      if(!done){
+        done=true;
+        window._syncingToSheets=false;
+        delete window[cbName];
+        try{document.head.removeChild(script);}catch(e){}
+        showSyncBar('Sync timeout - saved locally.',false);
+      }
+    },25000);
+    script.src=API_URL+'?action=save&callback='+cbName+'&data='+encoded+'&t='+Date.now();
+    document.head.appendChild(script);
+  }catch(e){window._syncingToSheets=false;showSyncBar('Error: '+e.message,true);}
 }
 
 function syncChunked(data){

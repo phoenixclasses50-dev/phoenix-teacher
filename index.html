@@ -155,8 +155,7 @@ function syncToSheets(){
   var sections=[
     {name:'students',   payload:{students:DB.students}},
     {name:'fees',       payload:{fees:DB.fees}},
-    {name:'notices',    payload:{notices:DB.notices||[],schedule:DB.schedule||[],starStudent:DB.starStudent||null,remarks:DB.remarks||{}}},
-    {name:'materials',  payload:{materials:DB.materials||[]}},
+    {name:'misc',       payload:{notices:DB.notices||[],schedule:DB.schedule||[],starStudent:DB.starStudent||null,remarks:DB.remarks||{},materials:DB.materials||[]}},
     {name:'marks',      payload:{marks:DB.marks}},
     {name:'attendance', payload:{attendance:DB.attendance}}
   ];
@@ -175,7 +174,7 @@ function syncToSheets(){
     var encoded=encodeURIComponent(JSON.stringify({action:'save',payload:sec.payload}));
 
     // Skip if encoded data too large (>7000 chars) — save locally only
-    if(encoded.length>12000){
+    if(encoded.length>7000){
       sendNext();
       return;
     }
@@ -587,7 +586,7 @@ function sendReportWA(sid){
   var testLines=tests.map(function(t){var v=Number((md[t.id]||{})[sid]||0);var pct=v?Math.round((v/t.maxMarks)*100):0;var g=!v?'—':pct>=75?'A':pct>=60?'B':pct>=40?'C':'D';return '• '+t.testName+': '+v+'/'+t.maxMarks+' ('+pct+'%) — Grade '+g;}).join('\n');
   var msg='📊 *Monthly Progress Report*\n🔥 Phoenix Classes\n📅 Date: '+dateStr+'\n━━━━━━━━━━━━━━━━\n'+
     '👤 Student: *'+s.name+'*\n📚 Class: '+s.cls+' | Subject: '+s.subject+'\n\n'+
-    '✅ *Attendance*\nPresent: '+attP+'/'+attD+' days ('+attPct+'%)\n'+
+    '✅ *Attendance*\nPresent: '+attP+'/'+attD+' दिवस ('+attPct+'%)\n'+
     (attPct<75?'⚠️ Below 75% — Please attend regularly!':'🌟 Good attendance!')+'\n\n'+
     '📝 *Test Performance*\n'+
     (testLines||'No tests recorded yet')+
@@ -636,7 +635,7 @@ function pgHome(){
       '<div class="card-title" style="color:#ef4444">🎯 Attendance Alert — '+alerts.length+' Students Below 75%</div>'+
       alerts.map(function(s){
         var pct=getAttPct(s.id,s.cls);
-        var waMsg='Dear Parent,\n\nAttendance Alert for *'+s.name+'* ('+s.cls+')\n\nCurrent Attendance: *'+pct+'%*\nMinimum Required: 75%\n\nPlease ensure regular attendance.\n\nRegards,\nPhoenix Classes';
+        var waMsg='नमस्कार पालक,\n\n*'+s.name+'* ('+s.cls+') यांच्या हाजेरीबाबत सूचना\n\nसध्याची हाजेरी: *'+pct+'%*\nकिमान आवश्यक: ७५%\n\nकृपया नियमित उपस्थिती ठेवा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'+
           '<div><div style="font-weight:700;font-size:13px">'+esc(s.name)+'</div>'+
           '<div style="font-size:11px;color:var(--muted)">'+s.cls+' · Attendance: <span style="color:#ef4444;font-weight:800">'+pct+'%</span></div></div>'+
@@ -761,20 +760,19 @@ function aStu(){
   if(newStu.phone&&newStu.phone.length>=10){
     setTimeout(function(){
       if(confirm('Send Welcome message on WhatsApp to '+newStu.name+'\'s parent?')){
-        var msg='🔥 *Phoenix Classes — Welcome!*\n\n'+
-          'Dear Parent,\n\n'+
-          'We are delighted to welcome *'+newStu.name+'* to Phoenix Classes!\n\n'+
-          '📚 *Details:*\n'+
-          '• Class: '+newStu.cls+'\n'+
-          '• Subject: '+newStu.subject+'\n\n'+
+        var msg='🔥 *Phoenix Classes — स्वागत!*\n\n'+
+          'नमस्कार पालक,\n\n'+
+          'आपल्या पाल्याचे *'+newStu.name+'* यांचे Phoenix Classes मध्ये सहर्ष स्वागत! 🎉\n\n'+
+          '📚 *तपशील:*\n'+
+          '• वर्ग: '+newStu.cls+'\n'+
+          '• विषय: '+newStu.subject+'\n\n'+
           '✅ *Student Portal:*\n'+
-          'Your child can view attendance, marks & fees at:\n'+
+          'हाजेरी, गुण व फी पाहण्यासाठी:\n'+
           'https://phoenixclasses50-dev.github.io/Phoenix-Classes-/student.html\n'+
-          '(Login with registered phone number)\n\n'+
-          '📞 For any queries:\n'+
-          '9503949009 / 9096815310\n\n'+
-          'Learn · Think · Grow 🌟\n'+
-          'Phoenix Classes, Bahe-Walwa, Sangli';
+          '(नोंदणीकृत मोबाइल नंबरने लॉगिन करा)\n\n'+
+          '📞 संपर्क: 9503949009 / 9096815310\n\n'+
+          'शिका · विचार करा · प्रगती करा 🌟\n'+
+          'Phoenix Classes, बहे-वाळवा, सांगली';
         waOpen(newStu.phone,msg);
       }
     },500);
@@ -820,10 +818,10 @@ function pgReport(id){
         '</div></div>';
     }).join('');
   // WA report
-  var waMsg='Dear Parent,\n\nHere is the complete report for *'+stu.name+'* - '+stu.cls+'\nPhoenix Classes\n\n';
+  var waMsg='नमस्कार पालक,\n\n*'+stu.name+'* ('+stu.cls+') यांचा संपूर्ण अहवाल\nPhoenix Classes\n\n';
   waMsg+='📊 *Academic Performance*\nOverall Grade: '+ovG+' ('+ovPct+'%)\n\n';
-  waMsg+='📋 *Attendance*: '+attP+'/'+attD+' days ('+attPct+'%)\n\n';
-  waMsg+='💰 *Fee Status*\nYearly Fee: ₹'+yearlyFee+'\nPaid: ₹'+totalPaid+'\n'+(balance>0?'Balance Due: ₹'+balance:'✅ Fully Paid')+'\n\nRegards,\nPhoenix Classes';
+  waMsg+='📋 *हाजेरी*: '+attP+'/'+attD+' दिवस ('+attPct+'%)\n\n';
+  waMsg+='💰 *Fee Status*\nYearly Fee: ₹'+yearlyFee+'\nभरलेली: ₹'+totalPaid+'\n'+(balance>0?'Balance Due: ₹'+balance:'✅ पूर्ण भरली')+'\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
   return '<button class="btn btn-gray" style="width:auto;padding:8px 14px;margin-bottom:14px" onclick="selStu=null;render()">← Back</button>'+
     '<div class="app-header"><div style="display:flex;gap:12px;align-items:center">'+
     '<div>'+photoEl(stu.id,stu.name)+'</div>'+
@@ -888,14 +886,14 @@ function sendAbsentWA(id){
   var attD=0,attP=0;
   for(var k in DB.attendance){if(k.indexOf('_'+s.cls)>=0){var r=DB.attendance[k];if(r[id]){attD++;if(r[id]==='P')attP++;}}}
   var attPct=attD>0?Math.round((attP/attD)*100):0;
-  var msg='Dear Parent,\n\n⚠️ *Absent Alert*\nPhoenix Classes\n\n'+
-    '👤 Student: *'+s.name+'*\n'+
-    '📚 Class: '+s.cls+'\n'+
-    '📅 Date: '+fmtDate(aDt)+'\n\n'+
-    '*'+s.name+' was absent today.*\n\n'+
-    '📊 Overall Attendance: '+attPct+'%'+
-    (attPct<75?'\n⚠️ Attendance below 75%! Please attend regularly.':'')+
-    '\n\nPlease ensure regular attendance.\n\nRegards,\nPhoenix Classes\n9503949009 / 9096815310';
+  var msg='नमस्कार पालक,\n\n⚠️ *गैरहजेरी सूचना*\nPhoenix Classes\n\n'+
+    '👤 विद्यार्थी: *'+s.name+'*\n'+
+    '📚 वर्ग: '+s.cls+'\n'+
+    '📅 दिनांक: '+fmtDate(aDt)+'\n\n'+
+    '*'+s.name+' आज वर्गात अनुपस्थित होते.*\n\n'+
+    '📊 एकूण हाजेरी: '+attPct+'%'+
+    (attPct<75?'\n⚠️ हाजेरी ७५% पेक्षा कमी! कृपया नियमित या.':'')+
+    '\n\nकृपया नियमित उपस्थिती ठेवा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
   waOpen(s.phone,msg);
 }
 
@@ -1091,10 +1089,10 @@ function savePay(){
   toast('Payment of ₹'+payment.amount+' saved!',false);
   if(ps&&ps.phone){
     var bal=getBalance(ps.id,ps.cls,ps.subject);
-    var msg='Dear Parent,\n\n✅ *Payment Receipt*\nPhoenix Classes\n\n'+
-      'Student: *'+ps.name+'*\nClass: '+ps.cls+'\n\n'+
-      '💰 Amount Paid: *₹'+payment.amount+'*\nDate: '+fmtDate(payment.date)+'\n'+(payment.note?'Note: '+payment.note+'\n':'')+
-      '\nTotal Paid: ₹'+getTotalPaid(ps.id)+'\nYearly Fee: ₹'+getYearlyFee(ps.cls,ps.subject)+'\n'+
+    var msg='नमस्कार पालक,\n\n✅ *फी पावती*\nPhoenix Classes\n\n'+
+      'विद्यार्थी: *'+ps.name+'*\nवर्ग: '+ps.cls+'\n\n'+
+      '💰 भरलेली रक्कम: *₹'+payment.amount+'*\nदिनांक: '+fmtDate(payment.date)+'\n'+(payment.note?'तपशील: '+payment.note+'\n':'')+
+      '\nएकूण भरलेली फी: ₹'+getTotalPaid(ps.id)+'\nवार्षिक फी: ₹'+getYearlyFee(ps.cls,ps.subject)+'\n'+
       (bal<=0?'✅ *Fee Fully Cleared!*':'Remaining Balance: ₹'+bal)+
       '\n\nThank you!\nPhoenix Classes';
     setTimeout(function(){
@@ -1175,7 +1173,7 @@ function pgWhatsapp(){
   return topbar('WhatsApp')+
   '<div class="card"><div class="card-title">📢 Batch Announcement</div>'+
   '<div class="mb"><label>Select Class</label><div>'+cps(['All'].concat(CL_FULL),waCls,'setWC')+'</div></div>'+
-  '<div class="mb"><label>Message</label><textarea id="wa-msg" rows="4" placeholder="e.g. Dear Parent, Tomorrow there is a class test. Please prepare your child. Thank you!"></textarea></div>'+
+  '<div class="mb"><label>Message</label><textarea id="wa-msg" rows="4" placeholder="उदा. नमस्कार पालक, उद्या वर्गात चाचणी आहे. आपल्या पाल्याला तयारी करायला सांगा. धन्यवाद!"></textarea></div>'+
   '<button class="btn btn-green" onclick="sendBatch()">📢 Send to All Students</button></div>'+
 
   '<div class="card"><div class="card-title">📋 Absent Student Alert</div>'+
@@ -1206,7 +1204,7 @@ function sendBatch(){
   if(!list.length){toast('No students found!',true);return;}
   if(!confirm('Send to '+list.length+' students?'))return;
   var i=0;
-  function next(){if(i>=list.length){toast('All messages opened! ('+list.length+')',false);return;}var s=list[i];i++;waOpen(s.phone,'Dear Parent,\n\n'+text+'\n\nRegards,\nPhoenix Classes');setTimeout(next,1500);}
+  function next(){if(i>=list.length){toast('All messages opened! ('+list.length+')',false);return;}var s=list[i];i++;waOpen(s.phone,'नमस्कार पालक,\n\n'+text+'\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310');setTimeout(next,1500);}
   next();
 }
 function sendAbsent(){
@@ -1218,7 +1216,7 @@ function sendAbsent(){
   if(!confirm('Send absent alert to '+list.length+' parent(s)?'))return;
   var i=0;
   function next(){if(i>=list.length){toast('Sent to '+list.length+' parents!',false);return;}var s=list[i];i++;
-    waOpen(s.phone,'Dear Parent,\n\nThis is to inform you that *'+s.name+'* was *ABSENT* from '+s.cls+' on *'+fmtDate(date)+'*.\n\nIf this is incorrect, please contact us.\n\nRegards,\nPhoenix Classes');
+    waOpen(s.phone,'नमस्कार पालक,\n\n*'+s.name+'* हे '+fmtDate(date)+' रोजी '+s.cls+' मध्ये *अनुपस्थित* होते.\n\nचुकीचे वाटल्यास संपर्क करा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310');
     setTimeout(next,1500);}
   next();
 }
@@ -1229,8 +1227,8 @@ function sendFeeRemind(){
   var i=0;
   function next(){if(i>=list.length){toast('Reminders sent! ('+list.length+')',false);return;}var s=list[i];i++;
     var fee2=getYearlyFee(s.cls,s.subject);var paid=getTotalPaid(s.id);var bal=fee2-paid;var fee=fee2;
-    var msg='Dear Parent,\n\nThis is a gentle reminder for *'+s.name+'* ('+s.cls+')\nPhoenix Classes\n\n'+
-      '💰 *Fee Details:*\nYearly Fee: ₹'+fee+'\nPaid Till Date: ₹'+paid+'\n*Balance Due: ₹'+bal+'*\n\nKindly clear the dues at the earliest.\n\nRegards,\nPhoenix Classes';
+    var msg='नमस्कार पालक,\n\n*'+s.name+'* ('+s.cls+') यांच्या फीबाबत विनम्र स्मरण\nPhoenix Classes\n\n'+
+      '💰 *फी तपशील:*\nवार्षिक फी: ₹'+fee+'\nभरलेली फी: ₹'+paid+'\n*बाकी रक्कम: ₹'+bal+'*\n\nकृपया लवकरात लवकर फी भरावी.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
     waOpen(s.phone,msg);setTimeout(next,1500);}
   next();
 }
@@ -1248,13 +1246,13 @@ function sendResults(){
   function next(){if(i>=list.length){toast('Results sent! ('+list.length+')',false);return;}var s=list[i];i++;
     var val=md[s.id]||0;var pct=val?Math.round((val/test.maxMarks)*100):0;
     var g=!val?'—':pct>=75?'A':pct>=60?'B':pct>=40?'C':'D';
-    var msg='Dear Parent,\n\n📊 *Result: '+test.testName+'*\nPhoenix Classes\n\n'+
-      'Student: *'+s.name+'*\nClass: '+s.cls+' · '+test.subject+'\n\n'+
-      '📝 Marks: *'+val+' / '+test.maxMarks+'*\n'+
-      '📈 Percentage: *'+pct+'%*\n'+
-      '🏆 Grade: *'+g+'*\n\n'+
-      (g==='A'?'Excellent! Keep it up! 🌟':g==='B'?'Good work! Keep it up! 👍':g==='C'?'Average. More effort needed. 📖':'Needs improvement. Please focus more. 💪')+
-      '\n\nRegards,\nPhoenix Classes';
+    var msg='नमस्कार पालक,\n\n📊 *निकाल: '+test.testName+'*\nPhoenix Classes\n\n'+
+      'विद्यार्थी: *'+s.name+'*\nवर्ग: '+s.cls+' · '+test.subject+'\n\n'+
+      '📝 गुण: *'+val+' / '+test.maxMarks+'*\n'+
+      '📈 टक्केवारी: *'+pct+'%*\n'+
+      '🏆 श्रेणी: *'+g+'*\n\n'+
+      (g==='A'?'उत्कृष्ट! असेच पुढे जा! 🌟':g==='B'?'Good work! Keep it up! 👍':g==='C'?'Average. More effort needed. 📖':'Needs improvement. Please focus more. 💪')+
+      '\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
     waOpen(s.phone,msg);setTimeout(next,1500);}
   next();
 }

@@ -635,7 +635,7 @@ function pgHome(){
       '<div class="card-title" style="color:#ef4444">🎯 Attendance Alert — '+alerts.length+' Students Below 75%</div>'+
       alerts.map(function(s){
         var pct=getAttPct(s.id,s.cls);
-        var waMsg='नमस्कार पालक,\n\n*'+s.name+'* ('+s.cls+') यांच्या हाजेरीबाबत सूचना\n\nसध्याची हाजेरी: *'+pct+'%*\nकिमान आवश्यक: ७५%\n\nकृपया नियमित उपस्थिती ठेवा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
+        var waMsg='नमस्कार पालक,\n\n*'+s.name+'* ('+s.cls+') यांच्या हजेरीबाबत सूचना\n\nसध्याची हजेरी: *'+pct+'%*\nकिमान आवश्यक: ७५%\n\nकृपया नियमित उपस्थिती ठेवा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'+
           '<div><div style="font-weight:700;font-size:13px">'+esc(s.name)+'</div>'+
           '<div style="font-size:11px;color:var(--muted)">'+s.cls+' · Attendance: <span style="color:#ef4444;font-weight:800">'+pct+'%</span></div></div>'+
@@ -767,7 +767,7 @@ function aStu(){
           '• वर्ग: '+newStu.cls+'\n'+
           '• विषय: '+newStu.subject+'\n\n'+
           '✅ *Student Portal:*\n'+
-          'हाजेरी, गुण व फी पाहण्यासाठी:\n'+
+          'हजेरी, गुण व फी पाहण्यासाठी:\n'+
           'https://phoenixclasses50-dev.github.io/Phoenix-Classes-/student.html\n'+
           '(नोंदणीकृत मोबाइल नंबरने लॉगिन करा)\n\n'+
           '📞 संपर्क: 9503949009 / 9096815310\n\n'+
@@ -820,7 +820,7 @@ function pgReport(id){
   // WA report
   var waMsg='नमस्कार पालक,\n\n*'+stu.name+'* ('+stu.cls+') यांचा संपूर्ण अहवाल\nPhoenix Classes\n\n';
   waMsg+='📊 *Academic Performance*\nOverall Grade: '+ovG+' ('+ovPct+'%)\n\n';
-  waMsg+='📋 *हाजेरी*: '+attP+'/'+attD+' दिवस ('+attPct+'%)\n\n';
+  waMsg+='📋 *हजेरी*: '+attP+'/'+attD+' दिवस ('+attPct+'%)\n\n';
   waMsg+='💰 *Fee Status*\nYearly Fee: ₹'+yearlyFee+'\nभरलेली: ₹'+totalPaid+'\n'+(balance>0?'Balance Due: ₹'+balance:'✅ पूर्ण भरली')+'\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
   return '<button class="btn btn-gray" style="width:auto;padding:8px 14px;margin-bottom:14px" onclick="selStu=null;render()">← Back</button>'+
     '<div class="app-header"><div style="display:flex;gap:12px;align-items:center">'+
@@ -890,9 +890,9 @@ function sendAbsentWA(id){
     '👤 विद्यार्थी: *'+s.name+'*\n'+
     '📚 वर्ग: '+s.cls+'\n'+
     '📅 दिनांक: '+fmtDate(aDt)+'\n\n'+
-    '*'+s.name+' आज वर्गात अनुपस्थित होते.*\n\n'+
-    '📊 एकूण हाजेरी: '+attPct+'%'+
-    (attPct<75?'\n⚠️ हाजेरी ७५% पेक्षा कमी! कृपया नियमित या.':'')+
+    '*'+s.name+' आज वर्गात अनुपस्थित.*\n\n'+
+    '📊 एकूण हजेरी: '+attPct+'%'+
+    (attPct<75?'\n⚠️ हजेरी ७५% पेक्षा कमी! कृपया नियमित या.':'')+
     '\n\nकृपया नियमित उपस्थिती ठेवा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
   waOpen(s.phone,msg);
 }

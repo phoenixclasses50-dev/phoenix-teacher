@@ -143,7 +143,7 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
 
 <script>
 // ── GOOGLE SHEETS API ────────────────────────────────────────────
-var API_URL='https://script.google.com/macros/s/AKfycbyZptL_Em5wwWD2G50kGgfcFrsxOnEsAM4Q8FCtcCU_IzOkaZW6zRUAwvmDXThSlSoJ/exec';
+var API_URL='https://script.google.com/macros/s/AKfycbwv5jVxZljIl-qXHaS1muo2s0fPFGnOI_DRUNzDnZYrQ_WfayPAG35oFsWOeC70QGv9/exec';
 
 function syncToSheets(){
   if(window._syncingToSheets){return;}
@@ -152,13 +152,30 @@ function syncToSheets(){
   showSyncBar('Saving to Google Sheets...',false);
 
   // Send data in sequential chunks to avoid URL length limit
-  var sections=[
-    {name:'students',   payload:{students:DB.students}},
-    {name:'fees',       payload:{fees:DB.fees}},
-    {name:'misc',       payload:{notices:DB.notices||[],schedule:DB.schedule||[],starStudent:DB.starStudent||null,remarks:DB.remarks||{},materials:DB.materials||[]}},
-    {name:'marks',      payload:{marks:DB.marks}},
-    {name:'attendance', payload:{attendance:DB.attendance}}
-  ];
+  // Send each section via JSONP GET — sequential to avoid duplicates
+  // Large sections (students, attendance) split into batches of 20
+  var sections=[];
+
+  // Students — split into batches of 20
+  var stuList=DB.students||[];
+  for(var b=0;b<stuList.length;b+=20){
+    sections.push({name:'students_batch',payload:{students:stuList.slice(b,b+20),_stuBatch:b===0}});
+  }
+  if(stuList.length===0) sections.push({name:'students',payload:{students:[]}});
+
+  sections.push({name:'fees',       payload:{fees:DB.fees}});
+  sections.push({name:'notices',    payload:{notices:DB.notices||[],schedule:DB.schedule||[],starStudent:DB.starStudent||null,remarks:DB.remarks||{}}});
+  sections.push({name:'materials',  payload:{materials:DB.materials||[]}});
+  sections.push({name:'marks',      payload:{marks:DB.marks}});
+
+  // Attendance — split by date key
+  var attKeys=Object.keys(DB.attendance||{});
+  for(var b=0;b<attKeys.length;b+=10){
+    var chunk={};
+    attKeys.slice(b,b+10).forEach(function(k){chunk[k]=DB.attendance[k];});
+    sections.push({name:'attendance_batch',payload:{attendance:chunk,_attBatch:b===0}});
+  }
+  if(attKeys.length===0) sections.push({name:'attendance',payload:{attendance:{}}});
 
   var i=0;
   function sendNext(){
@@ -173,29 +190,18 @@ function syncToSheets(){
     var done=false;
     var encoded=encodeURIComponent(JSON.stringify({action:'save',payload:sec.payload}));
 
-    // Skip if encoded data too large (>7000 chars) — save locally only
-    if(encoded.length>7000){
-      sendNext();
-      return;
-    }
-
     window[cbName]=function(r){
       done=true;
       delete window[cbName];
       try{document.head.removeChild(script);}catch(e){}
-      sendNext(); // Send next section after this one completes
+      sendNext();
     };
     script.onerror=function(){
-      if(!done){
-        done=true;
-        delete window[cbName];
-        sendNext();
-      }
+      if(!done){done=true;delete window[cbName];sendNext();}
     };
     setTimeout(function(){
       if(!done){
-        done=true;
-        delete window[cbName];
+        done=true;delete window[cbName];
         try{document.head.removeChild(script);}catch(e){}
         sendNext();
       }
@@ -635,7 +641,7 @@ function pgHome(){
       '<div class="card-title" style="color:#ef4444">🎯 Attendance Alert — '+alerts.length+' Students Below 75%</div>'+
       alerts.map(function(s){
         var pct=getAttPct(s.id,s.cls);
-        var waMsg='नमस्कार पालक,\n\n*'+s.name+'* ('+s.cls+') यांच्या हजेरीबाबत सूचना\n\nसध्याची हजेरी: *'+pct+'%*\nकिमान आवश्यक: ७५%\n\nकृपया नियमित उपस्थिती ठेवा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
+        var waMsg='नमस्कार पालक,\n\n*'+s.name+'* ('+s.cls+') यांच्या हाजेरीबाबत सूचना\n\nसध्याची हाजेरी: *'+pct+'%*\nकिमान आवश्यक: ७५%\n\nकृपया नियमित उपस्थिती ठेवा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'+
           '<div><div style="font-weight:700;font-size:13px">'+esc(s.name)+'</div>'+
           '<div style="font-size:11px;color:var(--muted)">'+s.cls+' · Attendance: <span style="color:#ef4444;font-weight:800">'+pct+'%</span></div></div>'+
@@ -767,7 +773,7 @@ function aStu(){
           '• वर्ग: '+newStu.cls+'\n'+
           '• विषय: '+newStu.subject+'\n\n'+
           '✅ *Student Portal:*\n'+
-          'हजेरी, गुण व फी पाहण्यासाठी:\n'+
+          'हाजेरी, गुण व फी पाहण्यासाठी:\n'+
           'https://phoenixclasses50-dev.github.io/Phoenix-Classes-/student.html\n'+
           '(नोंदणीकृत मोबाइल नंबरने लॉगिन करा)\n\n'+
           '📞 संपर्क: 9503949009 / 9096815310\n\n'+
@@ -820,7 +826,7 @@ function pgReport(id){
   // WA report
   var waMsg='नमस्कार पालक,\n\n*'+stu.name+'* ('+stu.cls+') यांचा संपूर्ण अहवाल\nPhoenix Classes\n\n';
   waMsg+='📊 *Academic Performance*\nOverall Grade: '+ovG+' ('+ovPct+'%)\n\n';
-  waMsg+='📋 *हजेरी*: '+attP+'/'+attD+' दिवस ('+attPct+'%)\n\n';
+  waMsg+='📋 *हाजेरी*: '+attP+'/'+attD+' दिवस ('+attPct+'%)\n\n';
   waMsg+='💰 *Fee Status*\nYearly Fee: ₹'+yearlyFee+'\nभरलेली: ₹'+totalPaid+'\n'+(balance>0?'Balance Due: ₹'+balance:'✅ पूर्ण भरली')+'\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
   return '<button class="btn btn-gray" style="width:auto;padding:8px 14px;margin-bottom:14px" onclick="selStu=null;render()">← Back</button>'+
     '<div class="app-header"><div style="display:flex;gap:12px;align-items:center">'+
@@ -890,9 +896,9 @@ function sendAbsentWA(id){
     '👤 विद्यार्थी: *'+s.name+'*\n'+
     '📚 वर्ग: '+s.cls+'\n'+
     '📅 दिनांक: '+fmtDate(aDt)+'\n\n'+
-    '*'+s.name+' आज वर्गात अनुपस्थित.*\n\n'+
-    '📊 एकूण हजेरी: '+attPct+'%'+
-    (attPct<75?'\n⚠️ हजेरी ७५% पेक्षा कमी! कृपया नियमित या.':'')+
+    '*'+s.name+' आज वर्गात अनुपस्थित होते.*\n\n'+
+    '📊 एकूण हाजेरी: '+attPct+'%'+
+    (attPct<75?'\n⚠️ हाजेरी ७५% पेक्षा कमी! कृपया नियमित या.':'')+
     '\n\nकृपया नियमित उपस्थिती ठेवा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
   waOpen(s.phone,msg);
 }
@@ -1544,9 +1550,12 @@ window.addEventListener('load', function () {
     applyTheme();
     render();
 
-    // Load data from Google Sheets ONCE after UI render
+    // Auto-load from Sheets ONLY if local data is empty
+    // If local data exists, trust it — manual "Load from Sheets" button ने करा
     setTimeout(function () {
-      loadFromSheets();
+      if(!DB.students || DB.students.length === 0){
+        loadFromSheets();
+      }
     }, 800);
 
     // Hide splash screen

@@ -333,7 +333,7 @@ function dbSWithSync(){
   window._syncTimer=setTimeout(function(){
     if(window._blockSync){return;} // Double-check before sync
     syncToSheets();
-  },3000); // 3 sec debounce — batches multiple attendance clicks into one sync
+  },2000); // 2 sec debounce
 }
 
 // ── DB ────────────────────────────────────────────────────────────
@@ -1629,6 +1629,9 @@ window.addEventListener('load', function () {
 
     // Auto-load from Sheets ONLY if local data is empty
     // If local data exists, trust it — manual "Load from Sheets" button ने करा
+    window._blockSync = false; // Always allow sync on startup
+    window._syncingToSheets = false;
+    window._loadingFromSheets = false;
     setTimeout(function () {
       if(!DB.students || DB.students.length === 0){
         loadFromSheets();

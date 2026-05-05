@@ -121,6 +121,7 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
   <div class="bn-item" onclick="go('attendance')" id="nav-attendance"><div class="bn-icon">📋</div><span>Attend</span></div>
   <div class="bn-item" onclick="go('marks')" id="nav-marks"><div class="bn-icon">📊</div><span>Marks</span></div>
   <div class="bn-item" onclick="go('fees')" id="nav-fees"><div class="bn-icon">💰</div><span>Fees</span></div>
+  <div class="bn-item" onclick="go('homework')" id="nav-homework"><div class="bn-icon">📚</div><span>गृहपाठ</span></div>
   <div class="bn-item" onclick="go('whatsapp')" id="nav-whatsapp"><div class="bn-icon">💬</div><span>WhatsApp</span></div>
   <div class="bn-item" onclick="go('more')" id="nav-more"><div class="bn-icon">⚙️</div><span>More</span></div>
 </div>
@@ -857,14 +858,7 @@ function pgAtt(){
         '<button class="btn-sm '+(st2==='A'?'btn-red':'btn-gray')+'" onclick="mAtt('+s.id+',\'A\')">A</button>'+
         waBtn+
         '</td>'+
-        '<td style="display:flex;align-items:center;gap:3px">'+
-        (function(){
-          var hwKey=aDt+'_'+s.cls;
-          var hwSt=((DB.homework&&DB.homework[hwKey]&&DB.homework[hwKey][s.id])||'');
-          return '<button class="btn-sm '+(hwSt==='Y'?'btn-green':'btn-gray')+'" onclick="mHW('+s.id+',\'Y\')">✅</button>'+
-                 '<button class="btn-sm '+(hwSt==='N'?'btn-red':'btn-gray')+'" onclick="mHW('+s.id+',\'N\')">❌</button>';
-        })()
-        +'</td></tr>';
+        '</tr>';
     }).join('');
   // Absent students list for bulk reminder
   var absentList=cs.filter(function(s){return dr[s.id]==='A'&&s.phone;});
@@ -892,7 +886,7 @@ function sendAbsentWA(id){
     '👤 विद्यार्थी: *'+s.name+'*\n'+
     '📚 वर्ग: '+s.cls+'\n'+
     '📅 दिनांक: '+fmtDate(aDt)+'\n\n'+
-    '*'+s.name+' आज वर्गात अनुपस्थित.*\n\n'+
+    '*'+s.name+' आज वर्गात अनुपस्थित *\n\n'+
     '📊 एकूण हजेरी: '+attPct+'%'+
     (attPct<75?'\n⚠️ हजेरी ७५% पेक्षा कमी! कृपया नियमित या.':'')+
     '\n\nकृपया नियमित उपस्थिती ठेवा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
@@ -993,6 +987,55 @@ function mAll(s){
 function setAC(c){aCl=c;render();}
 
 // ── MARKS ─────────────────────────────────────────────────────────
+function pgHW(){
+  var cs=DB.students.filter(function(s){return aCl==='All'?true:s.cls===aCl||s.cls.indexOf(aCl)>=0;});
+  var hwKey=aDt+'_'+aCl;
+  var hwDone=0,hwMiss=0;
+  cs.forEach(function(s){
+    var k=aDt+'_'+s.cls;
+    var st=(DB.homework&&DB.homework[k]&&DB.homework[k][s.id])||'';
+    if(st==='Y')hwDone++;
+    else if(st==='N')hwMiss++;
+  });
+
+  var rows=cs.length===0?'<tr><td colspan="4" class="empty">'+aCl+' मध्ये विद्यार्थी नाहीत.</td></tr>':
+    cs.map(function(s){
+      var k=aDt+'_'+s.cls;
+      var hwSt=((DB.homework&&DB.homework[k]&&DB.homework[k][s.id])||'');
+      return '<tr>'+
+        '<td>'+photoEl(s.id,s.name)+'</td>'+
+        '<td style="font-weight:700">'+esc(s.name)+'<br><span style="font-size:10px;color:var(--muted)">'+s.cls+'</span></td>'+
+        '<td>'+(hwSt==='Y'?bdg('पूर्ण','#22c55e'):hwSt==='N'?bdg('नाही','#ef4444'):bdg('—','var(--muted)'))+'</td>'+
+        '<td style="display:flex;align-items:center;gap:4px">'+
+        '<button class="btn-sm '+(hwSt==='Y'?'btn-green':'btn-gray')+'" onclick="mHW('+s.id+',\'Y\')">✅ पूर्ण</button>'+
+        '<button class="btn-sm '+(hwSt==='N'?'btn-red':'btn-gray')+'" onclick="mHW('+s.id+',\'N\')">❌ नाही</button>'+
+        '</td></tr>';
+    }).join('');
+
+  var missList=cs.filter(function(s){
+    var k=aDt+'_'+s.cls;
+    return (DB.homework&&DB.homework[k]&&DB.homework[k][s.id])==='N'&&s.phone;
+  });
+  var alertBtn=missList.length>0?
+    '<button class="btn" style="background:#7c3aed;color:#fff;margin-top:6px" onclick="sendHWAlert()">📱 गृहपाठ Alert पाठवा ('+missList.length+')</button>':'';
+
+  return '<div class="page-header"><h2>📚 गृहपाठ</h2></div>'+
+    '<div class="card" style="margin-bottom:12px">'+
+      clsSel('aCl','aCl=this.value;render()')+
+      dateSel()+
+      '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'+
+        '<span style="background:#22c55e22;color:#22c55e;padding:4px 10px;border-radius:20px;font-size:13px">✅ पूर्ण: '+hwDone+'</span>'+
+        '<span style="background:#ef444422;color:#ef4444;padding:4px 10px;border-radius:20px;font-size:13px">❌ नाही: '+hwMiss+'</span>'+
+        '<span style="background:var(--border);color:var(--muted);padding:4px 10px;border-radius:20px;font-size:13px">— बाकी: '+(cs.length-hwDone-hwMiss)+'</span>'+
+      '</div>'+
+      alertBtn+
+    '</div>'+
+    '<div class="card" style="overflow-x:auto">'+
+    '<table class="tbl"><thead><tr><th></th><th>विद्यार्थी</th><th>स्थिती</th><th>गृहपाठ</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    '</div>';
+}
+
+
 function pgMrk(){
   var tests=DB.marks.tests||[],md=DB.marks.data||{};
   var tlist=tests.length===0?'<div class="empty">No tests yet.</div>':
@@ -1255,7 +1298,7 @@ function sendAbsent(){
   if(!confirm('Send absent alert to '+list.length+' parent(s)?'))return;
   var i=0;
   function next(){if(i>=list.length){toast('Sent to '+list.length+' parents!',false);return;}var s=list[i];i++;
-    waOpen(s.phone,'नमस्कार पालक,\n\n*'+s.name+'* हे '+fmtDate(date)+' रोजी '+s.cls+' मध्ये *अनुपस्थित*.\n\nचुकीचे वाटल्यास संपर्क करा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310');
+    waOpen(s.phone,'नमस्कार पालक,\n\n*'+s.name+'* हे '+fmtDate(date)+' रोजी '+s.cls+' मध्ये *अनुपस्थित*\n\nचुकीचे वाटल्यास संपर्क करा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310');
     setTimeout(next,1500);}
   next();
 }
@@ -1566,6 +1609,7 @@ function render(){
     if(pg==='dashboard')el.innerHTML=pgHome();
     else if(pg==='students')el.innerHTML=pgStu();
     else if(pg==='attendance')el.innerHTML=pgAtt();
+    else if(pg==='homework')el.innerHTML=pgHW();
     else if(pg==='marks')el.innerHTML=pgMrk();
     else if(pg==='fees')el.innerHTML=pgFee();
     else if(pg==='whatsapp')el.innerHTML=pgWhatsapp();

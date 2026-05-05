@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -131,8 +131,7 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
   <div class="bn-item" onclick="go('more')" id="nav-more"><div class="bn-icon">⚙️</div><span>More</span></div>
 </div>
 <div class="toast" id="toast"></div>
-<div id="fab-menu" class="fab-menu" style="display:none">
-  <div class="fab-item"><span class="fab-label">Add Student</span><button class="fab-btn" style="background:#f97316" onclick="hideFab();go('students')">👨‍🎓</button></div>
+
   <div class="fab-item"><span class="fab-label">Mark Attendance</span><button class="fab-btn" style="background:#22c55e" onclick="hideFab();go('attendance')">📋</button></div>
   <div class="fab-item"><span class="fab-label">Add Test</span><button class="fab-btn" style="background:#3b82f6" onclick="hideFab();go('marks')">📊</button></div>
   <div class="fab-item"><span class="fab-label">Collect Fee</span><button class="fab-btn" style="background:#eab308" onclick="hideFab();go('fees')">💰</button></div>
@@ -143,7 +142,7 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
 
 <script>
 // ── GOOGLE SHEETS API ────────────────────────────────────────────
-var API_URL='https://script.google.com/macros/s/AKfycbwv5jVxZljIl-qXHaS1muo2s0fPFGnOI_DRUNzDnZYrQ_WfayPAG35oFsWOeC70QGv9/exec';
+var API_URL='https://script.google.com/macros/s/AKfycbwaUavuI_smkH4fvBEQesJkZfX3wEODYuhtfb9X2WvuP-qZrqf_b49rgGLm4dgfCrEX/exec';
 
 function syncToSheets(){
   if(window._syncingToSheets){return;}
@@ -163,6 +162,7 @@ function syncToSheets(){
   }
   if(stuList.length===0) sections.push({name:'students',payload:{students:[]}});
 
+  sections.push({name:'homework',    payload:{homework:DB.homework||{}}});
   sections.push({name:'fees',       payload:{fees:DB.fees}});
   sections.push({name:'notices',    payload:{notices:DB.notices||[],schedule:DB.schedule||[],starStudent:DB.starStudent||null,remarks:DB.remarks||{}}});
   sections.push({name:'materials',  payload:{materials:DB.materials||[]}});
@@ -303,6 +303,7 @@ function loadFromSheets(){
         if(ld.starStudent!==undefined)DB.starStudent=ld.starStudent;
         if(ld.remarks)DB.remarks=ld.remarks;
         if(ld.materials)DB.materials=ld.materials;else if(!DB.materials)DB.materials=[];
+        if(ld.homework)DB.homework=ld.homework;else if(!DB.homework)DB.homework={};
         dbS();
         window._blockSync=false; // Allow syncs again AFTER data is loaded
         window._loadingFromSheets=false;
@@ -868,7 +869,15 @@ function pgAtt(){
         '<button class="btn-sm '+(st2==='P'?'btn-green':'btn-gray')+'" onclick="mAtt('+s.id+',\'P\')">P</button>'+
         '<button class="btn-sm '+(st2==='A'?'btn-red':'btn-gray')+'" onclick="mAtt('+s.id+',\'A\')">A</button>'+
         waBtn+
-        '</td></tr>';
+        '</td>'+
+        '<td style="display:flex;align-items:center;gap:3px">'+
+        (function(){
+          var hwKey=aDt+'_'+s.cls;
+          var hwSt=(DB.homework[hwKey]&&DB.homework[hwKey][s.id])||'';
+          return '<button class="btn-sm '+(hwSt==='Y'?'btn-green':'btn-gray')+'" onclick="mHW('+s.id+',\'Y\')">✅</button>'+
+                 '<button class="btn-sm '+(hwSt==='N'?'btn-red':'btn-gray')+'" onclick="mHW('+s.id+',\'N\')">❌</button>';
+        })()
+        +'</td></tr>';
     }).join('');
   // Absent students list for bulk reminder
   var absentList=cs.filter(function(s){return dr[s.id]==='A'&&s.phone;});
@@ -914,6 +923,41 @@ function sendAllAbsentWA(){
     if(i>=absentList.length){toast('Alerts sent to '+absentList.length+' parents! ✅',false);return;}
     sendAbsentWA(absentList[i].id);
     i++;
+    setTimeout(next,1500);
+  }
+  next();
+}
+
+function mHW(id,s){
+  var stuCls=aCl;
+  if(stuCls==='All'){for(var xi=0;xi<DB.students.length;xi++){if(DB.students[xi].id===id){stuCls=DB.students[xi].cls;break;}}}
+  var k=aDt+'_'+stuCls;
+  if(!DB.homework[k])DB.homework[k]={};
+  DB.homework[k][id]=s;
+  dbSWithSync();render();
+  toast(s==='Y'?'गृहपाठ पूर्ण ✓':'गृहपाठ पूर्ण नाही ✗',s==='N');
+}
+
+function sendHWAlert(){
+  var list=[];
+  DB.students.forEach(function(s){
+    if(!s.phone)return;
+    var k=aDt+'_'+s.cls;
+    var hw=(DB.homework[k]&&DB.homework[k][s.id])||'';
+    if(hw==='N')list.push(s);
+  });
+  if(list.length===0){toast('सर्व विद्यार्थ्यांनी गृहपाठ पूर्ण केला! 🎉',false);return;}
+  var i=0;
+  function next(){
+    if(i>=list.length){toast(list.length+' पालकांना msg पाठवला!',false);return;}
+    var s=list[i++];
+    var msg='नमस्कार पालक,\n\n📚 *गृहपाठ सूचना*\nPhoenix Classes\n\n'+
+      '👤 विद्यार्थी: *'+s.name+'*\n'+
+      '📅 दिनांक: '+fmtDate(aDt)+'\n\n'+
+      '❌ *आज '+s.name+' यांनी गृहपाठ पूर्ण केलेला नाही.*\n\n'+
+      'कृपया घरी गृहपाठ पूर्ण करण्यास मदत करा.\n\n'+
+      'धन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
+    waOpen(s.phone,msg);
     setTimeout(next,1500);
   }
   next();

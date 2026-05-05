@@ -145,12 +145,9 @@ function syncToSheets(){
   // Large sections (students, attendance) split into batches of 20
   var sections=[];
 
-  // Students — split into batches of 20
+  // Students — send ALL at once with _stuFull flag (no batching = no overwrite bug)
   var stuList=DB.students||[];
-  for(var b=0;b<stuList.length;b+=20){
-    sections.push({name:'students_batch',payload:{students:stuList.slice(b,b+20),_stuBatch:b===0}});
-  }
-  if(stuList.length===0) sections.push({name:'students',payload:{students:[]}});
+  sections.push({name:'students_full',payload:{students:stuList,_stuFull:true}});
 
   sections.push({name:'homework',    payload:{homework:DB.homework||{}}});
   sections.push({name:'fees',       payload:{fees:DB.fees}});
@@ -275,16 +272,7 @@ function loadFromSheets(){
     try{
       if(d&&d.status==='ok'&&d.data){
         var ld=d.data;
-        // ── FIX: Only overwrite students if Sheets actually has data ──
-        // Prevents blank Sheets from wiping local data
-        if(ld.students&&ld.students.length>0){
-          DB.students=ld.students;
-        } else if(!ld.students || ld.students.length===0){
-          // Sheets has no students — keep local data, don't wipe
-          showSyncBar('⚠️ Sheets मध्ये students नाहीत — local data ठेवला.',false);
-          window._blockSync=false; window._loadingFromSheets=false;
-          return;
-        }
+        DB.students=ld.students||[];
         DB.attendance=ld.attendance||{};
         DB.marks=ld.marks||{tests:[],data:{}};
         if(ld.fees){
@@ -324,9 +312,9 @@ function loadFromSheets(){
       window._blockSync=false;
       delete window[cbName];
       try{document.head.removeChild(script);}catch(e){}
-      showSyncBar('⚠️ Sheets load timeout. Local data वापरत आहे.',false);
+      showSyncBar('❌ Timeout. Try again.',true);
     }
-  },35000);
+  },20000);
   document.head.appendChild(script);
 }
 
@@ -382,7 +370,6 @@ function dbL(){
     if(!DB.materials)DB.materials=[];
     if(!DB.fees.classFee)DB.fees.classFee={'Class 8':3000,'Class 9':3500,'Class 10':4000};
     if(!DB.fees.payments)DB.fees.payments={};
-    if(!DB.homework)DB.homework={};
   }catch(e){}
 }
 
@@ -418,21 +405,11 @@ function importData(inp){
       if(!DB.timetable)DB.timetable={};
       if(!DB.settings)DB.settings={theme:'orange',darkMode:true};
       if(!DB.photos)DB.photos={};
-      if(!DB.notices)DB.notices=[];
-      if(!DB.schedule)DB.schedule=[];
-      if(!DB.remarks)DB.remarks={};
-      if(!DB.materials)DB.materials=[];
-      if(!DB.homework)DB.homework={};
-      if(!DB.fees)DB.fees={classFee:{},payments:{}};
-      if(!DB.fees.classFee)DB.fees.classFee={'Class 8 Semi-English - Maths':3000,'Class 8 Semi-English - Science':3000,'Class 8 Semi-English - Both':5000,'Class 8 Marathi - Maths':3000,'Class 8 Marathi - Science':3000,'Class 8 Marathi - Both':5000,'Class 9 Semi-English - Maths':3500,'Class 9 Semi-English - Science':3500,'Class 9 Semi-English - Both':6000,'Class 9 Marathi - Maths':3500,'Class 9 Marathi - Science':3500,'Class 9 Marathi - Both':6000,'Class 10 Semi-English - Maths':4000,'Class 10 Semi-English - Science':4000,'Class 10 Semi-English - Both':7000,'Class 10 Marathi - Maths':4000,'Class 10 Marathi - Science':4000,'Class 10 Marathi - Both':7000};
+      if(!DB.fees.classFee)DB.fees.classFee={'Class 8':3000,'Class 9':3500,'Class 10':4000};
       if(!DB.fees.payments)DB.fees.payments={};
       dbS();applyTheme();render();
-      toast('Backup restored! '+DB.students.length+' students. Sheets sync होत आहे...',false);
-      // ── FIX: sync restored backup to Google Sheets immediately ──
-      window._blockSync=false;
-      clearTimeout(window._syncTimer);
-      setTimeout(function(){ syncToSheets(); },1500);
-    }catch(e){toast('File error: '+e.message,true);}
+      toast('Restored! '+DB.students.length+' students.',false);
+    }catch(e){toast('File error!',true);}
   };
   r.readAsText(file);inp.value='';
 }
@@ -652,7 +629,7 @@ function pgHome(){
       '<div class="card-title" style="color:#ef4444">🎯 Attendance Alert — '+alerts.length+' Students Below 75%</div>'+
       alerts.map(function(s){
         var pct=getAttPct(s.id,s.cls);
-        var waMsg='नमस्कार पालक,\n\n*'+s.name+'* ('+s.cls+') यांच्या हाजेरीबाबत सूचना\n\nसध्याची हाजेरी: *'+pct+'%*\nकिमान आवश्यक: ७५%\n\nकृपया नियमित उपस्थिती ठेवा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
+        var waMsg='नमस्कार पालक,\n\n*'+s.name+'* ('+s.cls+') यांच्या हजेरीबाबत सूचना\n\nसध्याची हजेरी: *'+pct+'%*\nकिमान आवश्यक: ७५%\n\nकृपया नियमित उपस्थिती ठेवा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'+
           '<div><div style="font-weight:700;font-size:13px">'+esc(s.name)+'</div>'+
           '<div style="font-size:11px;color:var(--muted)">'+s.cls+' · Attendance: <span style="color:#ef4444;font-weight:800">'+pct+'%</span></div></div>'+
@@ -784,7 +761,7 @@ function aStu(){
           '• वर्ग: '+newStu.cls+'\n'+
           '• विषय: '+newStu.subject+'\n\n'+
           '✅ *Student Portal:*\n'+
-          'हाजेरी, गुण व फी पाहण्यासाठी:\n'+
+          'हजेरी, गुण व फी पाहण्यासाठी:\n'+
           'https://phoenixclasses50-dev.github.io/Phoenix-Classes-/student.html\n'+
           '(नोंदणीकृत मोबाइल नंबरने लॉगिन करा)\n\n'+
           '📞 संपर्क: 9503949009 / 9096815310\n\n'+
@@ -837,7 +814,7 @@ function pgReport(id){
   // WA report
   var waMsg='नमस्कार पालक,\n\n*'+stu.name+'* ('+stu.cls+') यांचा संपूर्ण अहवाल\nPhoenix Classes\n\n';
   waMsg+='📊 *Academic Performance*\nOverall Grade: '+ovG+' ('+ovPct+'%)\n\n';
-  waMsg+='📋 *हाजेरी*: '+attP+'/'+attD+' दिवस ('+attPct+'%)\n\n';
+  waMsg+='📋 *हजेरी*: '+attP+'/'+attD+' दिवस ('+attPct+'%)\n\n';
   waMsg+='💰 *Fee Status*\nYearly Fee: ₹'+yearlyFee+'\nभरलेली: ₹'+totalPaid+'\n'+(balance>0?'Balance Due: ₹'+balance:'✅ पूर्ण भरली')+'\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
   return '<button class="btn btn-gray" style="width:auto;padding:8px 14px;margin-bottom:14px" onclick="selStu=null;render()">← Back</button>'+
     '<div class="app-header"><div style="display:flex;gap:12px;align-items:center">'+
@@ -915,9 +892,9 @@ function sendAbsentWA(id){
     '👤 विद्यार्थी: *'+s.name+'*\n'+
     '📚 वर्ग: '+s.cls+'\n'+
     '📅 दिनांक: '+fmtDate(aDt)+'\n\n'+
-    '*'+s.name+' आज वर्गात अनुपस्थित होते.*\n\n'+
-    '📊 एकूण हाजेरी: '+attPct+'%'+
-    (attPct<75?'\n⚠️ हाजेरी ७५% पेक्षा कमी! कृपया नियमित या.':'')+
+    '*'+s.name+' आज वर्गात अनुपस्थित.*\n\n'+
+    '📊 एकूण हजेरी: '+attPct+'%'+
+    (attPct<75?'\n⚠️ हजेरी ७५% पेक्षा कमी! कृपया नियमित या.':'')+
     '\n\nकृपया नियमित उपस्थिती ठेवा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
   waOpen(s.phone,msg);
 }
@@ -1566,20 +1543,14 @@ function clearAll(){
   },payments:{}};
   DB.photos={};
   DB.timetable={};
-  DB.homework={};
-  DB.notices=[];
-  DB.schedule=[];
-  DB.remarks={};
-  DB.materials=[];
   // Save to local storage
   localStorage.removeItem('pxDB3');
   dbS();
   // Immediately sync to Sheets — don't wait
   clearTimeout(window._syncTimer);
-  window._blockSync=false;
   syncToSheets();
   render();
-  toast('सर्व data delete झाला आणि Sheets sync होत आहे!',false);
+  toast('All data cleared and synced!',false);
 }
 
 // ── ROUTER ────────────────────────────────────────────────────────
@@ -1604,7 +1575,7 @@ function render(){
     document.getElementById('app').innerHTML='<div class="card" style="color:#ef4444;padding:20px"><b>Error:</b> '+ex.message+'<br><button class="btn btn-orange" onclick="render()" style="margin-top:10px">Retry</button></div>';
   }
 }
-// ── APP STARTUP ──────────────────────────────────────────────────
+// ── APP STARTUP (single init — duplicate removed to fix double-load bug) ──
 window.addEventListener('load', function () {
   try {
     dbL();
@@ -1612,18 +1583,22 @@ window.addEventListener('load', function () {
     applyTheme();
     render();
 
-    // ── FIX: Always load from Sheets on startup to stay in sync ──
-    // Local data shows immediately (fast UI), then Sheets data merges in
+    // Auto-load from Sheets ONLY if local data is empty
+    // If local data exists, trust it — manual "Load from Sheets" button ने करा
     setTimeout(function () {
-      loadFromSheets();
-    }, 1000);
+      if(!DB.students || DB.students.length === 0){
+        loadFromSheets();
+      }
+    }, 800);
 
     // Hide splash screen
     setTimeout(function () {
       var splash = document.getElementById('splash');
       if (splash) {
         splash.classList.add('hide');
-        setTimeout(function () { splash.remove(); }, 500);
+        setTimeout(function () {
+          splash.remove();
+        }, 500);
       }
     }, 2500);
 

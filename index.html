@@ -886,7 +886,7 @@ function sendAbsentWA(id){
     '👤 विद्यार्थी: *'+s.name+'*\n'+
     '📚 वर्ग: '+s.cls+'\n'+
     '📅 दिनांक: '+fmtDate(aDt)+'\n\n'+
-    '*'+s.name+' आज वर्गात अनुपस्थित *\n\n'+
+    '*'+s.name+' आज वर्गात अनुपस्थित.*\n\n'+
     '📊 एकूण हजेरी: '+attPct+'%'+
     (attPct<75?'\n⚠️ हजेरी ७५% पेक्षा कमी! कृपया नियमित या.':'')+
     '\n\nकृपया नियमित उपस्थिती ठेवा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
@@ -1019,11 +1019,11 @@ function pgHW(){
   var alertBtn=missList.length>0?
     '<button class="btn" style="background:#7c3aed;color:#fff;margin-top:6px" onclick="sendHWAlert()">📱 गृहपाठ Alert पाठवा ('+missList.length+')</button>':'';
 
-  return '<div class="page-header"><h2>📚 गृहपाठ</h2></div>'+
+  return topbar('गृहपाठ')+
+    '<div class="mb"><label>दिनांक</label><input type="date" value="'+aDt+'" onchange="aDt=this.value;render()"/></div>'+
+    '<div class="mb">'+cps(['All'].concat(CL_FULL),aCl,'setAC')+'</div>'+
     '<div class="card" style="margin-bottom:12px">'+
-      clsSel('aCl','aCl=this.value;render()')+
-      dateSel()+
-      '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'+
+      '<div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">'+
         '<span style="background:#22c55e22;color:#22c55e;padding:4px 10px;border-radius:20px;font-size:13px">✅ पूर्ण: '+hwDone+'</span>'+
         '<span style="background:#ef444422;color:#ef4444;padding:4px 10px;border-radius:20px;font-size:13px">❌ नाही: '+hwMiss+'</span>'+
         '<span style="background:var(--border);color:var(--muted);padding:4px 10px;border-radius:20px;font-size:13px">— बाकी: '+(cs.length-hwDone-hwMiss)+'</span>'+
@@ -1298,7 +1298,7 @@ function sendAbsent(){
   if(!confirm('Send absent alert to '+list.length+' parent(s)?'))return;
   var i=0;
   function next(){if(i>=list.length){toast('Sent to '+list.length+' parents!',false);return;}var s=list[i];i++;
-    waOpen(s.phone,'नमस्कार पालक,\n\n*'+s.name+'* हे '+fmtDate(date)+' रोजी '+s.cls+' मध्ये *अनुपस्थित*\n\nचुकीचे वाटल्यास संपर्क करा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310');
+    waOpen(s.phone,'नमस्कार पालक,\n\n*'+s.name+'* हे '+fmtDate(date)+' रोजी '+s.cls+' मध्ये *अनुपस्थित*.\n\nचुकीचे वाटल्यास संपर्क करा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310');
     setTimeout(next,1500);}
   next();
 }

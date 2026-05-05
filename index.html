@@ -845,8 +845,10 @@ function pgAtt(){
   var cs=DB.students.filter(function(s){return aCl==='All'?true:s.cls===aCl||s.cls.indexOf(aCl)>=0;});
   var key=aDt+'_'+aCl,dr=DB.attendance[key]||{},pr=0,ab=0;
   for(var k in dr){if(dr[k]==='P')pr++;else ab++;}
-  var rows=cs.length===0?'<tr><td colspan="5" class="empty">No students in '+aCl+'.</td></tr>':
-    cs.map(function(s,i){
+
+  // ── Attendance rows (NO homework column — kept simple) ──
+  var rows=cs.length===0?'<tr><td colspan="4" class="empty">'+aCl+' मध्ये कोणीही नाही.</td></tr>':
+    cs.map(function(s){
       var st2=dr[s.id];
       var isAbsent=st2==='A';
       var waBtn=isAbsent&&s.phone?
@@ -854,35 +856,92 @@ function pgAtt(){
       return '<tr>'+
         '<td>'+photoEl(s.id,s.name)+'</td>'+
         '<td style="font-weight:700">'+esc(s.name)+'<br><span style="font-size:10px;color:var(--muted)">'+s.cls+'</span></td>'+
-        '<td>'+(st2==='P'?bdg('Present','#22c55e'):st2==='A'?bdg('Absent','#ef4444'):bdg('—','var(--muted)'))+'</td>'+
+        '<td>'+(st2==='P'?bdg('हजर','#22c55e'):st2==='A'?bdg('गैरहजर','#ef4444'):bdg('—','var(--muted)'))+'</td>'+
         '<td style="display:flex;align-items:center;flex-wrap:wrap;gap:3px">'+
         '<button class="btn-sm '+(st2==='P'?'btn-green':'btn-gray')+'" onclick="mAtt('+s.id+',\'P\')">P</button>'+
         '<button class="btn-sm '+(st2==='A'?'btn-red':'btn-gray')+'" onclick="mAtt('+s.id+',\'A\')">A</button>'+
         waBtn+
-        '</td>'+
-        '<td style="display:flex;align-items:center;gap:3px">'+
-        (function(){
-          var hwKey=aDt+'_'+s.cls;
-          var hwSt=((DB.homework&&DB.homework[hwKey]&&DB.homework[hwKey][s.id])||'');
-          return '<button class="btn-sm '+(hwSt==='Y'?'btn-green':'btn-gray')+'" onclick="mHW('+s.id+',\'Y\')">✅</button>'+
-                 '<button class="btn-sm '+(hwSt==='N'?'btn-red':'btn-gray')+'" onclick="mHW('+s.id+',\'N\')">❌</button>';
-        })()
-        +'</td></tr>';
+        '</td></tr>';
     }).join('');
-  // Absent students list for bulk reminder
+
+  // ── Absent bulk button ──
   var absentList=cs.filter(function(s){return dr[s.id]==='A'&&s.phone;});
-  var bulkBtn=absentList.length>0?
-    '<button class="btn btn-red" style="margin-top:6px" onclick="sendAllAbsentWA()">📱 Send Absent Alert to All ('+absentList.length+')</button>':'';
-  return topbar('Attendance')+
-    '<div class="grid3">'+sc(cs.length,'Students','#f97316')+sc(pr,'Present','#22c55e')+sc(ab,'Absent','#ef4444')+'</div>'+
-    '<div class="card"><div class="card-title">📈 Progress</div>'+bar('Attendance',pr,cs.length||1,'#22c55e')+'</div>'+
-    '<div class="mb"><label>Date</label><input type="date" value="'+aDt+'" onchange="aDt=this.value;render()"/></div>'+
+  var bulkAbsentBtn=absentList.length>0?
+    '<button class="btn btn-red" style="margin-top:6px" onclick="sendAllAbsentWA()">📱 सर्व गैरहजर पालकांना msg पाठवा ('+absentList.length+')</button>':'';
+
+  // ── HOMEWORK SECTION ─────────────────────────────────────────────
+  // Count HW done / not done for this class & date
+  var hwDone=0,hwNotDone=0,hwNotMarked=0;
+  var hwRows=cs.length===0?'<div class="empty">विद्यार्थी नाहीत.</div>':
+    cs.map(function(s){
+      var hwKey=aDt+'_'+s.cls;
+      var hwSt=((DB.homework&&DB.homework[hwKey]&&DB.homework[hwKey][s.id])||'');
+      if(hwSt==='Y')hwDone++;
+      else if(hwSt==='N')hwNotDone++;
+      else hwNotMarked++;
+      var hwColor=hwSt==='Y'?'#22c55e':hwSt==='N'?'#ef4444':'var(--muted)';
+      var hwLabel=hwSt==='Y'?'✅ पूर्ण':hwSt==='N'?'❌ नाही':'—';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+        photoEl(s.id,s.name)+
+        '<div>'+
+          '<div style="font-weight:700;font-size:13px">'+esc(s.name)+'</div>'+
+          '<div style="font-size:10px;color:var(--muted)">'+s.cls+'</div>'+
+        '</div>'+
+        '</div>'+
+        '<div style="display:flex;align-items:center;gap:6px">'+
+        '<span style="font-size:11px;font-weight:700;color:'+hwColor+'">'+hwLabel+'</span>'+
+        '<button class="btn-sm '+(hwSt==='Y'?'btn-green':'btn-gray')+'" onclick="mHW('+s.id+',\'Y\')">✅</button>'+
+        '<button class="btn-sm '+(hwSt==='N'?'btn-red':'btn-gray')+'" onclick="mHW('+s.id+',\'N\')">❌</button>'+
+        '</div>'+
+        '</div>';
+    }).join('');
+
+  // HW alert button — only show if some students have HW=N
+  var hwAlertBtn='';
+  if(hwNotDone>0){
+    var hwNotDoneList=cs.filter(function(s){
+      var hwKey=aDt+'_'+s.cls;
+      return ((DB.homework&&DB.homework[hwKey]&&DB.homework[hwKey][s.id])||'')==='N'&&s.phone;
+    });
+    if(hwNotDoneList.length>0){
+      hwAlertBtn='<button class="btn btn-orange" style="margin-top:10px" onclick="sendHWAlert()">'+
+        '📱 गृहपाठ न केलेल्या '+hwNotDoneList.length+' पालकांना Marathi msg पाठवा</button>';
+    }
+  }
+
+  var hwSummary='<div style="display:flex;gap:8px;margin-bottom:12px">'+
+    '<div style="flex:1;background:rgba(34,197,94,.12);border:1px solid #22c55e;border-radius:10px;padding:8px;text-align:center">'+
+    '<div style="font-size:18px;font-weight:800;color:#22c55e">'+hwDone+'</div>'+
+    '<div style="font-size:9px;color:var(--muted);font-weight:700">पूर्ण केला</div></div>'+
+    '<div style="flex:1;background:rgba(239,68,68,.12);border:1px solid #ef4444;border-radius:10px;padding:8px;text-align:center">'+
+    '<div style="font-size:18px;font-weight:800;color:#ef4444">'+hwNotDone+'</div>'+
+    '<div style="font-size:9px;color:var(--muted);font-weight:700">पूर्ण नाही</div></div>'+
+    '<div style="flex:1;background:rgba(107,114,128,.12);border:1px solid var(--border);border-radius:10px;padding:8px;text-align:center">'+
+    '<div style="font-size:18px;font-weight:800;color:var(--muted)">'+hwNotMarked+'</div>'+
+    '<div style="font-size:9px;color:var(--muted);font-weight:700">नोंद नाही</div></div>'+
+    '</div>';
+
+  return topbar('हाजेरी')+
+    '<div class="grid3">'+sc(cs.length,'विद्यार्थी','#f97316')+sc(pr,'हजर','#22c55e')+sc(ab,'गैरहजर','#ef4444')+'</div>'+
+    '<div class="card"><div class="card-title">📈 आजची हाजेरी</div>'+bar('Attendance',pr,cs.length||1,'#22c55e')+'</div>'+
+    '<div class="mb"><label>दिनांक</label><input type="date" value="'+aDt+'" onchange="aDt=this.value;render()"/></div>'+
     '<div class="mb">'+cps(['All'].concat(CL_FULL),aCl,'setAC')+'</div>'+
+
+    // ── ATTENDANCE CARD ──
     '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
-    '<div style="font-weight:800">'+aCl+' — '+aDt+'</div>'+
-    '<div style="display:flex;gap:6px"><button class="btn-sm btn-green" onclick="mAll(\'P\')">✓ All P</button><button class="btn-sm btn-red" onclick="mAll(\'A\')">✗ All A</button><button class="btn-sm" style="background:#7c3aed" onclick="delAtt(\''+aDt+'\',\''+aCl+'\')">🗑️</button></div></div>'+
-    '<table><thead><tr><th></th><th>Name</th><th>Status</th><th>Mark & Alert</th></tr></thead><tbody>'+rows+'</tbody></table>'+
-    bulkBtn+'</div>';
+    '<div style="font-weight:800">📋 '+aCl+' — '+fmtDate(aDt)+'</div>'+
+    '<div style="display:flex;gap:6px"><button class="btn-sm btn-green" onclick="mAll(\'P\')">✓ सर्व P</button><button class="btn-sm btn-red" onclick="mAll(\'A\')">✗ सर्व A</button><button class="btn-sm" style="background:#7c3aed" onclick="delAtt(\''+aDt+'\',\''+aCl+'\')">🗑️</button></div></div>'+
+    '<table><thead><tr><th></th><th>नाव</th><th>स्थिती</th><th>हाजेरी नोंद / Alert</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    bulkAbsentBtn+'</div>'+
+
+    // ── HOMEWORK CARD ──
+    '<div class="card" style="border-color:var(--accent)">'+
+    '<div class="card-title">📚 गृहपाठ तपासणी — '+fmtDate(aDt)+'</div>'+
+    hwSummary+
+    hwRows+
+    hwAlertBtn+
+    '</div>';
 }
 
 function sendAbsentWA(id){
@@ -931,30 +990,37 @@ function mHW(id,s){
 }
 
 function sendHWAlert(){
+  // Only for currently selected class & date
+  var cs=DB.students.filter(function(s){return aCl==='All'?true:s.cls===aCl||s.cls.indexOf(aCl)>=0;});
   var list=[];
-  DB.students.forEach(function(s){
+  cs.forEach(function(s){
     if(!s.phone)return;
     var k=aDt+'_'+s.cls;
-    var hw=(DB.homework[k]&&DB.homework[k][s.id])||'';
+    var hw=((DB.homework&&DB.homework[k]&&DB.homework[k][s.id])||'');
     if(hw==='N')list.push(s);
   });
   if(list.length===0){toast('सर्व विद्यार्थ्यांनी गृहपाठ पूर्ण केला! 🎉',false);return;}
+  if(!confirm(list.length+' पालकांना गृहपाठ सूचना पाठवायची?'))return;
   var i=0;
   function next(){
-    if(i>=list.length){toast(list.length+' पालकांना msg पाठवला!',false);return;}
+    if(i>=list.length){toast(list.length+' पालकांना msg पाठवला! ✅',false);return;}
     var s=list[i++];
-    var msg='नमस्कार पालक,\n\n📚 *गृहपाठ सूचना*\nPhoenix Classes\n\n'+
+    var attD=0,attP=0;
+    for(var k in DB.attendance){if(k.indexOf('_'+s.cls)>=0){var r=DB.attendance[k];if(r[s.id]){attD++;if(r[s.id]==='P')attP++;}}}
+    var attPct=attD>0?Math.round((attP/attD)*100):0;
+    var msg='नमस्कार पालक,\n\n📚 *गृहपाठ सूचना*\n🔥 Phoenix Classes\n📅 दिनांक: '+fmtDate(aDt)+'\n━━━━━━━━━━━━━━━━\n\n'+
       '👤 विद्यार्थी: *'+s.name+'*\n'+
-      '📅 दिनांक: '+fmtDate(aDt)+'\n\n'+
+      '📚 वर्ग: '+s.cls+'\n\n'+
       '❌ *आज '+s.name+' यांनी गृहपाठ पूर्ण केलेला नाही.*\n\n'+
-      'कृपया घरी गृहपाठ पूर्ण करण्यास मदत करा.\n\n'+
-      'धन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
+      '📊 एकूण हाजेरी: '+attPct+'%\n\n'+
+      'विनंती आहे की घरी गृहपाठ पूर्ण करण्यास मदत करावी.\n\n'+
+      '━━━━━━━━━━━━━━━━\n'+
+      'धन्यवाद,\nPhoenix Classes\nBahe, Tal-Walwa, Dist-Sangli\n📞 9503949009 / 9096815310';
     waOpen(s.phone,msg);
     setTimeout(next,1500);
   }
   next();
 }
-
 function mAtt(id,s){
   // CRITICAL FIX: Never save under 'All' key — use student's real class
   var stuCls=aCl;
@@ -965,13 +1031,13 @@ function mAtt(id,s){
   if(!DB.attendance[k])DB.attendance[k]={};
   DB.attendance[k][id]=s;
   dbSWithSync();render();
-  toast(s==='P'?'Marked Present ✓':'Marked Absent ✗',s==='A');
+  toast(s==='P'?'हजर नोंद ✓':'गैरहजर नोंद ✗',s==='A');
   // Auto prompt WA if absent and has phone
   if(s==='A'){
     var stu=null;for(var i=0;i<DB.students.length;i++){if(DB.students[i].id===id){stu=DB.students[i];break;}}
     if(stu&&stu.phone){
       setTimeout(function(){
-        if(confirm('Send absent alert to '+stu.name+'\'s parent on WhatsApp?')){
+        if(confirm(stu.name+' च्या पालकांना गैरहजेरी msg पाठवायचा?')){
           sendAbsentWA(id);
         }
       },400);

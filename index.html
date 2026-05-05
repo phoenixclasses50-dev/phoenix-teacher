@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -82,13 +82,7 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
 .splash-ring{width:100px;height:100px;border:3px solid rgba(249,115,22,.3);border-top-color:#f97316;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:20px;}
 @keyframes splashPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
 @keyframes spin{to{transform:rotate(360deg);}}
-/* ── FAB ── */
-.fab{position:fixed;bottom:72px;right:16px;width:52px;height:52px;background:linear-gradient(135deg,#f97316,#ea580c);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;box-shadow:0 4px 20px rgba(249,115,22,.5);z-index:99;border:none;color:#fff;transition:transform .2s;}
-.fab:hover{transform:scale(1.1);}
-.fab-menu{position:fixed;bottom:130px;right:16px;display:flex;flex-direction:column;gap:10px;z-index:98;}
-.fab-item{display:flex;align-items:center;gap:10px;justify-content:flex-end;}
-.fab-label{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;}
-.fab-btn{width:44px;height:44px;border-radius:50%;border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3);}
+
 /* ── ANALYTICS ── */
 .chart-bar{display:flex;align-items:flex-end;gap:4px;height:80px;margin:8px 0;}
 .chart-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;}
@@ -132,11 +126,7 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
 </div>
 <div class="toast" id="toast"></div>
 
-  <div class="fab-item"><span class="fab-label">Mark Attendance</span><button class="fab-btn" style="background:#22c55e" onclick="hideFab();go('attendance')">📋</button></div>
-  <div class="fab-item"><span class="fab-label">Add Test</span><button class="fab-btn" style="background:#3b82f6" onclick="hideFab();go('marks')">📊</button></div>
-  <div class="fab-item"><span class="fab-label">Collect Fee</span><button class="fab-btn" style="background:#eab308" onclick="hideFab();go('fees')">💰</button></div>
-</div>
-<button class="fab" id="fab-main" onclick="toggleFab()">＋</button>
+  </div>
 <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)"/>
 <input type="file" id="photoFile" accept="image/*" style="display:none" onchange="uploadPhoto(this)"/>
 
@@ -873,7 +863,7 @@ function pgAtt(){
         '<td style="display:flex;align-items:center;gap:3px">'+
         (function(){
           var hwKey=aDt+'_'+s.cls;
-          var hwSt=(DB.homework[hwKey]&&DB.homework[hwKey][s.id])||'';
+          var hwSt=((DB.homework&&DB.homework[hwKey]&&DB.homework[hwKey][s.id])||'');
           return '<button class="btn-sm '+(hwSt==='Y'?'btn-green':'btn-gray')+'" onclick="mHW('+s.id+',\'Y\')">✅</button>'+
                  '<button class="btn-sm '+(hwSt==='N'?'btn-red':'btn-gray')+'" onclick="mHW('+s.id+',\'N\')">❌</button>';
         })()
@@ -932,6 +922,8 @@ function mHW(id,s){
   var stuCls=aCl;
   if(stuCls==='All'){for(var xi=0;xi<DB.students.length;xi++){if(DB.students[xi].id===id){stuCls=DB.students[xi].cls;break;}}}
   var k=aDt+'_'+stuCls;
+  if(!DB.homework)DB.homework={};
+  if(!DB.homework)DB.homework={};
   if(!DB.homework[k])DB.homework[k]={};
   DB.homework[k][id]=s;
   dbSWithSync();render();

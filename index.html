@@ -475,7 +475,12 @@ function getTotalPaid(sid){
   var pays=DB.fees.payments[sid]||[];
   return pays.reduce(function(s,p){return s+(+p.amount||0);},0);
 }
-function getYearlyFee(cls,subject){
+function getYearlyFee(cls,subject,sid){
+  // If student has a custom fee (Vacation batch), use that
+  if(sid){
+    var stu=DB.students.find(function(s){return s.id===sid;});
+    if(stu&&stu.batchType==='Vacation'&&stu.customFee>0)return stu.customFee;
+  }
   var cf=DB.fees.classFee||{};
   if(!cls)return 0;
   if(subject){
@@ -492,7 +497,7 @@ function getYearlyFee(cls,subject){
   return 0;
 }
 function getBalance(sid,cls,subject){
-  return getYearlyFee(cls,subject)-getTotalPaid(sid);
+  return getYearlyFee(cls,subject,sid)-getTotalPaid(sid);
 }
 function getTotalCollected(){
   var total=0;
@@ -576,7 +581,7 @@ function sendReportWA(sid){
   tests.forEach(function(t){var v=Number((md[t.id]||{})[sid]||0);if(v){totM+=t.maxMarks;obtM+=v;}});
   var avgPct=totM>0?Math.round((obtM/totM)*100):0;
   var ovG=avgPct>=75?'A':avgPct>=60?'B':avgPct>=40?'C':tests.length>0?'D':'—';
-  var paid=getTotalPaid(sid),fee=getYearlyFee(s.cls,s.subject),bal=fee-paid;
+  var paid=getTotalPaid(sid),fee=getYearlyFee(s.cls,s.subject,sid),bal=fee-paid;
   var today=new Date();var dateStr=today.getDate()+'/'+(today.getMonth()+1)+'/'+today.getFullYear();
   var testLines=tests.map(function(t){var v=Number((md[t.id]||{})[sid]||0);var pct=v?Math.round((v/t.maxMarks)*100):0;var g=!v?'—':pct>=75?'A':pct>=60?'B':pct>=40?'C':'D';return '• '+t.testName+': '+v+'/'+t.maxMarks+' ('+pct+'%) — Grade '+g;}).join('\n');
   var msg='📊 *Monthly Progress Report*\n🔥 Phoenix Classes\n📅 Date: '+dateStr+'\n━━━━━━━━━━━━━━━━\n'+
@@ -617,7 +622,7 @@ function pgHome(){
     var c=CL[i];
     var cnt=DB.students.filter(function(s){return s.cls.indexOf(c)>=0;}).length;
     var clsStudents=DB.students.filter(function(s){return s.cls.indexOf(c)>=0;});
-    var totalFee=clsStudents.reduce(function(sum,s){return sum+getYearlyFee(s.cls,s.subject);},0);
+    var totalFee=clsStudents.reduce(function(sum,s){return sum+getYearlyFee(s.cls,s.subject,s.id);},0);
     var collected=clsStudents.reduce(function(sum,s){return sum+getTotalPaid(s.id);},0);
     var fee=totalFee;
     rows+='<tr><td style="font-weight:700">'+c+'</td><td style="font-weight:700;color:var(--accent)">'+cnt+'</td><td>₹'+fee+'</td><td style="color:var(--green);font-weight:700">₹'+collected+'</td></tr>';
@@ -657,11 +662,11 @@ function pgStu(){
   var fl=DB.students.filter(function(s){return(sF==='All'||s.cls===sF||s.cls.indexOf(sF)>=0)&&s.name.toLowerCase().indexOf(sSr.toLowerCase())>=0;});
   var rows=fl.length===0?'<tr><td colspan="5" class="empty">No students found.</td></tr>':
     fl.map(function(s,i){
-      var paid=getTotalPaid(s.id),fee=getYearlyFee(s.cls,s.subject),bal=fee-paid;
+      var paid=getTotalPaid(s.id),fee=getYearlyFee(s.cls,s.subject,s.id),bal=fee-paid;
       var badges=getBadges(s.id,s.cls);
       return '<tr>'+
         '<td>'+photoEl(s.id,s.name)+'</td>'+
-        '<td style="font-weight:700;cursor:pointer;color:var(--accent)" onclick="selStu='+s.id+';render()">'+esc(s.name)+'<br><span style="font-size:10px;color:var(--muted)">'+s.cls+'</span>'+badgeHtml(badges)+'</td>'+
+        '<td style="font-weight:700;cursor:pointer;color:var(--accent)" onclick="selStu='+s.id+';render()">'+esc(s.name)+'<br><span style="font-size:10px;color:var(--muted)">'+s.cls+'</span>'+(s.batchType==='Vacation'?'<br><span style="background:#7c3aed22;color:#8b5cf6;border:1px solid #8b5cf644;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">🏖️ Vacation</span>':'')+badgeHtml(badges)+'</td>'+
         '<td>'+bdg(s.subject,'#3b82f6')+'</td>'+
         '<td>'+(fee>0&&bal<=0?bdg('Full Paid','#22c55e'):fee===0?bdg('Fee Not Set','#94a3b8'):bdg('₹'+bal+' Due','#ef4444'))+'</td>'+
         '<td style="display:flex;gap:4px"><button class="btn-sm" style="background:#3b82f6" onclick="openEditStu('+s.id+')">✏️</button><button class="btn-sm btn-red" onclick="dStu('+s.id+')">✕</button></td>'+
@@ -676,6 +681,8 @@ function pgStu(){
     '<div><label>Medium</label><select id="smed">'+MEDIUM.map(function(m){return '<option>'+m+'</option>';}).join('')+'</select></div></div>'+
     '<div class="mb"><label>Subject</label><select id="ss">'+SB.map(function(s){return '<option>'+s+'</option>';}).join('')+'</select></div>'+
     '<div class="mb"><label>Parent Phone</label><input id="sp" type="tel" placeholder="10-digit number"/></div>'+
+    '<div class="grid2 mb"><div><label>Batch Type</label><select id="sbatch" onchange="document.getElementById(\'vacfee-row\').style.display=this.value===\'Vacation\'?\'block\':\'none\'"><option value="Regular">Regular (वार्षिक)</option><option value="Vacation">Vacation Batch (सुट्टी)</option></select></div>'+
+    '<div id="vacfee-row" style="display:none"><label>Custom Fee (₹)</label><input id="scustomfee" type="number" placeholder="e.g. 800"/></div></div>'+
     '<button class="btn btn-orange" onclick="aStu()">➕ Add Student</button></div>'+
     '<div class="mb">'+cps(['All'].concat(CL_FULL),sF,'setSF')+'</div>'+
     '<div class="mb"><input placeholder="🔍 Search..." oninput="sSr=this.value;render()" value="'+esc(sSr)+'"/></div>'+
@@ -708,6 +715,9 @@ function openEditStu(id){
       '<div class="mb"><label>Subject</label><select id="edit-ss" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none">'+
       SB.map(function(s){return'<option>'+s+'</option>';}).join('')+'</select></div>'+
       '<div class="mb"><label>Parent Phone</label><input id="edit-sp" type="tel" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:Arial,sans-serif"/></div>'+
+      '<div class="grid2 mb">'+
+      '<div><label>Batch Type</label><select id="edit-sbatch" onchange="document.getElementById(\'edit-vacfee-row\').style.display=this.value===\'Vacation\'?\'block\':\'none\'" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none"><option value="Regular">Regular (वार्षिक)</option><option value="Vacation">Vacation Batch (सुट्टी)</option></select></div>'+
+      '<div id="edit-vacfee-row"><label>Custom Fee (₹)</label><input id="edit-scustomfee" type="number" placeholder="e.g. 800" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:Arial,sans-serif"/></div></div>'+
       '<div style="display:flex;gap:8px;margin-top:8px">'+
       '<button onclick="saveEditStu()" style="flex:1;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer">Save Changes</button>'+
       '<button onclick="closeEditStu()" style="flex:1;background:var(--border);color:var(--muted);border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer">Cancel</button>'+
@@ -719,6 +729,12 @@ function openEditStu(id){
   document.getElementById('edit-smed').value=med;
   document.getElementById('edit-ss').value=s.subject;
   document.getElementById('edit-sp').value=s.phone||'';
+  var bEl=document.getElementById('edit-sbatch');
+  var cfEl=document.getElementById('edit-scustomfee');
+  var vRow=document.getElementById('edit-vacfee-row');
+  if(bEl){bEl.value=s.batchType||'Regular';}
+  if(cfEl){cfEl.value=s.customFee||'';}
+  if(vRow){vRow.style.display=(s.batchType==='Vacation')?'block':'none';}
   document.getElementById('edit-stu-modal').style.display='flex';
 }
 function closeEditStu(){
@@ -739,6 +755,11 @@ function saveEditStu(){
       DB.students[i].cls=c.value+' '+med.value;
       DB.students[i].subject=s.value;
       DB.students[i].phone=p?p.value:'';
+      var bEl2=document.getElementById('edit-sbatch');
+      var cfEl2=document.getElementById('edit-scustomfee');
+      var bt=bEl2?bEl2.value:'Regular';
+      DB.students[i].batchType=bt;
+      DB.students[i].customFee=bt==='Vacation'&&cfEl2?+cfEl2.value||0:0;
       break;
     }
   }
@@ -746,9 +767,12 @@ function saveEditStu(){
 }
 function aStu(){
   var n=document.getElementById('sn'),c=document.getElementById('sc2'),med=document.getElementById('smed'),s=document.getElementById('ss'),p=document.getElementById('sp');
+  var batchEl=document.getElementById('sbatch'),cfeeEl=document.getElementById('scustomfee');
   if(!n||!n.value.trim()){toast('Please enter student name!',true);return;}
   var clsFull=c.value+' '+med.value;
-  var newStu={id:Date.now(),name:n.value.trim(),cls:clsFull,subject:s.value,phone:p?p.value:''};
+  var batchType=batchEl?batchEl.value:'Regular';
+  var customFee=batchType==='Vacation'&&cfeeEl?+cfeeEl.value||0:0;
+  var newStu={id:Date.now(),name:n.value.trim(),cls:clsFull,subject:s.value,phone:p?p.value:'',batchType:batchType,customFee:customFee};
   DB.students.push(newStu);
   dbSWithSync();render();toast('Student added successfully! 🎉',false);
   // Send WhatsApp greeting if phone exists
@@ -801,7 +825,7 @@ function pgReport(id){
   // Fee
   var pays=DB.fees.payments[id]||[];
   var totalPaid=getTotalPaid(id);
-  var yearlyFee=getYearlyFee(stu.cls,stu.subject);
+  var yearlyFee=getYearlyFee(stu.cls,stu.subject,stu.id);
   var balance=yearlyFee-totalPaid;
   var payRows=pays.length===0?'<div class="empty">No payments recorded yet.</div>':
     pays.slice().reverse().map(function(p,ri){
@@ -821,7 +845,7 @@ function pgReport(id){
     '<div class="app-header"><div style="display:flex;gap:12px;align-items:center">'+
     '<div>'+photoEl(stu.id,stu.name)+'</div>'+
     '<div><div style="font-size:17px;font-weight:800;color:#fff">'+esc(stu.name)+'</div>'+
-    '<div style="font-size:11px;color:#fed7aa">'+stu.cls+' · '+stu.subject+'</div></div>'+
+    '<div style="font-size:11px;color:#fed7aa">'+stu.cls+' · '+stu.subject+(stu.batchType==='Vacation'?' · 🏖️ Vacation Batch':'')+'</div></div>'+
     '<div style="margin-left:auto;text-align:center"><div style="font-size:40px;font-weight:800;color:#fff;line-height:1">'+ovG+'</div><div style="font-size:10px;color:#fed7aa">Grade</div></div>'+
     '</div></div>'+
     '<div class="grid3">'+sc(ovPct+'%','Avg Score',gc2)+sc(attPct+'%','Attendance','#22c55e')+sc(balance<=0?'Paid':'₹'+balance,balance<=0?'Fee Clear':'Balance','#eab308')+'</div>'+
@@ -1106,7 +1130,7 @@ function pgFeeCollect(){
   var totalC=getTotalCollected(),totalP=getTotalPending();
   var rows=fl.length===0?'<tr><td colspan="5" class="empty">No students.</td></tr>':
     fl.map(function(s,i){
-      var paid=getTotalPaid(s.id),fee=getYearlyFee(s.cls,s.subject),bal=fee-paid;
+      var paid=getTotalPaid(s.id),fee=getYearlyFee(s.cls,s.subject,s.id),bal=fee-paid;
       var pct=fee>0?Math.round((paid/fee)*100):0;
       return '<tr>'+
         '<td>'+photoEl(s.id,s.name)+'</td>'+
@@ -1308,7 +1332,7 @@ function sendFeeRemind(){
   if(!confirm('Send reminder to '+list.length+' parent(s)?'))return;
   var i=0;
   function next(){if(i>=list.length){toast('Reminders sent! ('+list.length+')',false);return;}var s=list[i];i++;
-    var fee2=getYearlyFee(s.cls,s.subject);var paid=getTotalPaid(s.id);var bal=fee2-paid;var fee=fee2;
+    var fee2=getYearlyFee(s.cls,s.subject,s.id);var paid=getTotalPaid(s.id);var bal=fee2-paid;var fee=fee2;
     var msg='नमस्कार पालक,\n\n*'+s.name+'* ('+s.cls+') यांच्या फीबाबत विनम्र स्मरण\nPhoenix Classes\n\n'+
       '💰 *फी तपशील:*\nवार्षिक फी: ₹'+fee+'\nभरलेली फी: ₹'+paid+'\n*बाकी रक्कम: ₹'+bal+'*\n\nकृपया लवकरात लवकर फी भरावी.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
     waOpen(s.phone,msg);setTimeout(next,1500);}

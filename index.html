@@ -443,6 +443,26 @@ function fmtDate(str){
   var d=new Date(str);
   return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear();
 }
+function isBirthdayToday(bdStr){
+  if(!bdStr)return false;
+  var today=new Date();
+  var bd=new Date(bdStr);
+  return bd.getDate()===today.getDate()&&bd.getMonth()===today.getMonth();
+}
+function birthdayStudentsToday(){
+  return DB.students.filter(function(s){return isBirthdayToday(s.birthdate);});
+}
+function sendBirthdayWA(s){
+  var msg='🎂 *वाढदिवसाच्या हार्दिक शुभेच्छा!* 🎉\n\n'+
+    'नमस्कार,\n\n'+
+    '🌟 *'+s.name+'* यांना वाढदिवसाच्या खूप खूप शुभेच्छा! 🎈\n\n'+
+    'तुम्ही आणखी ज्ञानवान व यशस्वी व्हाल अशी आमची मनःपूर्वक इच्छा आहे. 🚀\n\n'+
+    '✨ Phoenix Classes परिवाराकडून तुम्हाला आजच्या दिवसाच्या हार्दिक शुभेच्छा! 💐\n\n'+
+    'शिका · विचार करा · प्रगती करा 🔥\n'+
+    'Phoenix Classes, बहे-वाळवा, सांगली\n'+
+    '📞 9503949009 / 9096815310';
+  waOpen(s.phone,msg);
+}
 
 var CL=['Class 8','Class 9','Class 10'];
 var CL_FULL=['Class 8 Semi-English','Class 8 Marathi','Class 9 Semi-English','Class 9 Marathi','Class 10 Semi-English','Class 10 Marathi'];
@@ -643,8 +663,24 @@ function pgHome(){
           '</div>';
       }).join('')+'</div>';
   }
+  // Birthday today
+  var bdKids=birthdayStudentsToday();
+  var bdHtml='';
+  if(bdKids.length>0){
+    bdHtml='<div class="card" style="border-color:#eab308;background:rgba(234,179,8,0.07)">'+
+      '<div class="card-title" style="color:#eab308">🎂 आजचे वाढदिवस — '+bdKids.length+' Student(s)!</div>'+
+      bdKids.map(function(s){
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'+
+          '<div>'+photoEl(s.id,s.name)+
+          '<div style="font-weight:700;font-size:13px;margin-top:4px">'+esc(s.name)+' 🎉</div>'+
+          '<div style="font-size:11px;color:var(--muted)">'+s.cls+'</div></div>'+
+          (s.phone?'<button class="btn-sm" style="background:#25d366;flex-shrink:0" onclick="sendBirthdayWA(DB.students.find(function(x){return x.id==='+s.id+';}))">🎂 WhatsApp</button>':'<span style="font-size:11px;color:var(--muted)">No phone</span>')+
+          '</div>';
+      }).join('')+'</div>';
+  }
   return topbar('Phoenix Classes')+
     '<div class="app-header"><div style="display:flex;align-items:center;gap:12px">'+logoSVG+'<div><div class="app-header-title">Phoenix Classes</div><div class="app-header-sub">Maharashtra Board · Class 8–10</div><div style="font-size:10px;color:#fed7aa;letter-spacing:2px;margin-top:2px">Learn · Think · Grow</div></div></div></div>'+
+    bdHtml+
     alertHtml+
     '<div class="grid2">'+sc(DB.students.length,'Total Students','#f97316')+sc(tp+'/'+total,'Present Today','#22c55e')+sc('₹'+getTotalCollected(),'Fee Collected','#eab308')+sc('₹'+getTotalPending(),'Fee Pending','#ef4444')+'</div>'+
     '<div class="card"><div class="card-title">📈 Today\'s Attendance</div>'+bar('Attendance',tp,total||1,'#22c55e')+'</div>'+
@@ -681,6 +717,7 @@ function pgStu(){
     '<div><label>Medium</label><select id="smed">'+MEDIUM.map(function(m){return '<option>'+m+'</option>';}).join('')+'</select></div></div>'+
     '<div class="mb"><label>Subject</label><select id="ss">'+SB.map(function(s){return '<option>'+s+'</option>';}).join('')+'</select></div>'+
     '<div class="mb"><label>Parent Phone</label><input id="sp" type="tel" placeholder="10-digit number"/></div>'+
+    '<div class="mb"><label>🎂 Student Birthdate</label><input id="sbd" type="date"/></div>'+
     '<div class="grid2 mb"><div><label>Batch Type</label><select id="sbatch" onchange="document.getElementById(\'vacfee-row\').style.display=this.value===\'Vacation\'?\'block\':\'none\'"><option value="Regular">Regular (वार्षिक)</option><option value="Vacation">Vacation Batch (सुट्टी)</option></select></div>'+
     '<div id="vacfee-row" style="display:none"><label>Custom Fee (₹)</label><input id="scustomfee" type="number" placeholder="e.g. 800"/></div></div>'+
     '<button class="btn btn-orange" onclick="aStu()">➕ Add Student</button></div>'+
@@ -715,6 +752,7 @@ function openEditStu(id){
       '<div class="mb"><label>Subject</label><select id="edit-ss" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none">'+
       SB.map(function(s){return'<option>'+s+'</option>';}).join('')+'</select></div>'+
       '<div class="mb"><label>Parent Phone</label><input id="edit-sp" type="tel" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:Arial,sans-serif"/></div>'+
+      '<div class="mb"><label>🎂 Student Birthdate</label><input id="edit-sbd" type="date" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:Arial,sans-serif"/></div>'+
       '<div class="grid2 mb">'+
       '<div><label>Batch Type</label><select id="edit-sbatch" onchange="document.getElementById(\'edit-vacfee-row\').style.display=this.value===\'Vacation\'?\'block\':\'none\'" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none"><option value="Regular">Regular (वार्षिक)</option><option value="Vacation">Vacation Batch (सुट्टी)</option></select></div>'+
       '<div id="edit-vacfee-row"><label>Custom Fee (₹)</label><input id="edit-scustomfee" type="number" placeholder="e.g. 800" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:Arial,sans-serif"/></div></div>'+
@@ -729,6 +767,8 @@ function openEditStu(id){
   document.getElementById('edit-smed').value=med;
   document.getElementById('edit-ss').value=s.subject;
   document.getElementById('edit-sp').value=s.phone||'';
+  var bdEl2=document.getElementById('edit-sbd');
+  if(bdEl2)bdEl2.value=s.birthdate||'';
   var bEl=document.getElementById('edit-sbatch');
   var cfEl=document.getElementById('edit-scustomfee');
   var vRow=document.getElementById('edit-vacfee-row');
@@ -755,6 +795,8 @@ function saveEditStu(){
       DB.students[i].cls=c.value+' '+med.value;
       DB.students[i].subject=s.value;
       DB.students[i].phone=p?p.value:'';
+      var bdEl3=document.getElementById('edit-sbd');
+      DB.students[i].birthdate=bdEl3?bdEl3.value:'';
       var bEl2=document.getElementById('edit-sbatch');
       var cfEl2=document.getElementById('edit-scustomfee');
       var bt=bEl2?bEl2.value:'Regular';
@@ -767,12 +809,12 @@ function saveEditStu(){
 }
 function aStu(){
   var n=document.getElementById('sn'),c=document.getElementById('sc2'),med=document.getElementById('smed'),s=document.getElementById('ss'),p=document.getElementById('sp');
-  var batchEl=document.getElementById('sbatch'),cfeeEl=document.getElementById('scustomfee');
+  var batchEl=document.getElementById('sbatch'),cfeeEl=document.getElementById('scustomfee'),bdEl=document.getElementById('sbd');
   if(!n||!n.value.trim()){toast('Please enter student name!',true);return;}
   var clsFull=c.value+' '+med.value;
   var batchType=batchEl?batchEl.value:'Regular';
   var customFee=batchType==='Vacation'&&cfeeEl?+cfeeEl.value||0:0;
-  var newStu={id:Date.now(),name:n.value.trim(),cls:clsFull,subject:s.value,phone:p?p.value:'',batchType:batchType,customFee:customFee};
+  var newStu={id:Date.now(),name:n.value.trim(),cls:clsFull,subject:s.value,phone:p?p.value:'',batchType:batchType,customFee:customFee,birthdate:bdEl?bdEl.value:''};
   DB.students.push(newStu);
   dbSWithSync();render();toast('Student added successfully! 🎉',false);
   // Send WhatsApp greeting if phone exists
@@ -844,8 +886,9 @@ function pgReport(id){
   return '<button class="btn btn-gray" style="width:auto;padding:8px 14px;margin-bottom:14px" onclick="selStu=null;render()">← Back</button>'+
     '<div class="app-header"><div style="display:flex;gap:12px;align-items:center">'+
     '<div>'+photoEl(stu.id,stu.name)+'</div>'+
-    '<div><div style="font-size:17px;font-weight:800;color:#fff">'+esc(stu.name)+'</div>'+
-    '<div style="font-size:11px;color:#fed7aa">'+stu.cls+' · '+stu.subject+(stu.batchType==='Vacation'?' · 🏖️ Vacation Batch':'')+'</div></div>'+
+    '<div><div style="font-size:17px;font-weight:800;color:#fff">'+esc(stu.name)+(isBirthdayToday(stu.birthdate)?' 🎂':'')+'</div>'+
+    '<div style="font-size:11px;color:#fed7aa">'+stu.cls+' · '+stu.subject+(stu.batchType==='Vacation'?' · 🏖️ Vacation Batch':'')+'</div>'+
+    (stu.birthdate?'<div style="font-size:11px;color:#fed7aa">🎂 '+fmtDate(stu.birthdate)+'</div>':'')+'</div>'+
     '<div style="margin-left:auto;text-align:center"><div style="font-size:40px;font-weight:800;color:#fff;line-height:1">'+ovG+'</div><div style="font-size:10px;color:#fed7aa">Grade</div></div>'+
     '</div></div>'+
     '<div class="grid3">'+sc(ovPct+'%','Avg Score',gc2)+sc(attPct+'%','Attendance','#22c55e')+sc(balance<=0?'Paid':'₹'+balance,balance<=0?'Fee Clear':'Balance','#eab308')+'</div>'+

@@ -133,7 +133,7 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
 
 <script>
 // ── GOOGLE SHEETS API ────────────────────────────────────────────
-var API_URL='https://script.google.com/macros/s/AKfycbwaUavuI_smkH4fvBEQesJkZfX3wEODYuhtfb9X2WvuP-qZrqf_b49rgGLm4dgfCrEX/exec';
+var API_URL='https://script.google.com/macros/s/AKfycbxlxh-BnSP_0K4YXQwAlPgbiOWOOhv6g3-3WKf9HGmrtkUUcqsCVyC-jtVkGr0ROfGL/exec';
 
 function syncToSheets(){
   if(window._syncingToSheets){return;}
@@ -371,6 +371,7 @@ function dbL(){
     if(!DB.materials)DB.materials=[];
     if(!DB.fees.classFee)DB.fees.classFee={'Class 8':3000,'Class 9':3500,'Class 10':4000};
     if(!DB.fees.payments)DB.fees.payments={};
+    if(!DB.homework)DB.homework={};
   }catch(e){}
 }
 
@@ -815,6 +816,18 @@ function aStu(){
   var batchType=batchEl?batchEl.value:'Regular';
   var customFee=batchType==='Vacation'&&cfeeEl?+cfeeEl.value||0:0;
   var newStu={id:Date.now(),name:n.value.trim(),cls:clsFull,subject:s.value,phone:p?p.value:'',batchType:batchType,customFee:customFee,birthdate:bdEl?bdEl.value:''};
+  // Edit mode — update existing student
+  if(editStuId){
+    var ei=DB.students.findIndex(function(s){return s.id===editStuId;});
+    if(ei>=0){
+      newStu.id=editStuId; // keep original id
+      DB.students[ei]=newStu;
+      editStuId=null;
+      dbSWithSync();render();toast('Student updated! ✅',false);
+      return;
+    }
+  }
+  // Add new student
   DB.students.push(newStu);
   dbSWithSync();render();toast('Student added successfully! 🎉',false);
   // Send WhatsApp greeting if phone exists

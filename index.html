@@ -155,7 +155,7 @@ function syncToSheets(){
       timetable:DB.timetable||{},
       updatedAt:Date.now()
     };
-    fetch('https://phoenix-classes-5050-default-rtdb.firebaseio.com/phoenixClasses.json',{
+    fetch('https://phoenix-classes-5050-default-rtdb.asia-southeast1.firebasedatabase.app/phoenixClasses.json',{
       method:'PUT',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(data)
@@ -186,7 +186,7 @@ function loadFromSheets(){
   window._loadingFromSheets=true;
   window._blockSync=true;
   showSyncBar('☁️ Firebase मधून load करत आहे...',false);
-  fetch('https://phoenix-classes-5050-default-rtdb.firebaseio.com/phoenixClasses.json')
+  fetch('https://phoenix-classes-5050-default-rtdb.asia-southeast1.firebasedatabase.app/phoenixClasses.json')
     .then(function(r){return r.json();})
     .then(function(ld){
       window._loadingFromSheets=false;

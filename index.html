@@ -175,6 +175,7 @@ function syncToSheets(){
       materials:DB.materials||[],
       homework:DB.homework||{},
       timetable:DB.timetable||{},
+      photos:DB.photos||{},
       updatedAt:Date.now()
     };
     var fbUrl='https://phoenix-classes-5050-default-rtdb.asia-southeast1.firebasedatabase.app/phoenixClasses.json';
@@ -239,6 +240,7 @@ function loadFromSheets(){
         if(ld.homework)DB.homework=ld.homework;
         else if(!DB.homework)DB.homework={};
         if(ld.timetable)DB.timetable=ld.timetable;
+        if(ld.photos)DB.photos=ld.photos;
         dbS();
         window._blockSync=false;
         render();
@@ -354,7 +356,7 @@ function triggerPhoto(id){photoUploadId=id;document.getElementById('photoFile').
 function uploadPhoto(inp){
   var file=inp.files[0];if(!file||!photoUploadId)return;
   var r=new FileReader();
-  r.onload=function(ev){DB.photos[photoUploadId]=ev.target.result;dbS();render();toast('Photo updated!',false);};
+  r.onload=function(ev){DB.photos[photoUploadId]=ev.target.result;dbSWithSync();render();toast('Photo updated!',false);};
   r.readAsDataURL(file);inp.value='';
 }
 function photoEl(id,name){
@@ -706,6 +708,9 @@ function openEditStu(id){
   if(cfEl){cfEl.value=s.customFee||'';}
   if(vRow){vRow.style.display=(s.batchType==='Vacation')?'block':'none';}
   document.getElementById('edit-stu-modal').style.display='flex';
+  // Set birthdate AFTER modal is visible (fixes cached modal bug)
+  var bdElFinal=document.getElementById('edit-sbd');
+  if(bdElFinal)bdElFinal.value=s.birthdate||'';
 }
 function closeEditStu(){
   var m=document.getElementById('edit-stu-modal');
@@ -1559,7 +1564,7 @@ function pgTimetable(){
   for(var d in DB.timetable){var dayTT=DB.timetable[d];var entries=[];for(var p in dayTT){if(dayTT[p])entries.push(p+': '+dayTT[p]);}if(entries.length>0){saved+='<div style="margin-bottom:10px"><div class="day-header">'+d+'</div>'+entries.map(function(e){return '<div style="font-size:12px;padding:4px 8px">'+e+'</div>';}).join('')+'</div>';}}
   return '<div class="card"><div class="card-title">📅 Timetable</div><div class="mb">'+dayBtns+'</div><div class="day-header">'+ttDay+'</div>'+periods+'<button class="btn btn-orange" onclick="saveTT()">Save '+ttDay+'</button></div>'+(saved?'<div class="card"><div class="card-title">Full Timetable</div>'+saved+'</div>':'');
 }
-function saveTT(){if(!DB.timetable[ttDay])DB.timetable[ttDay]={};PERIODS.forEach(function(p,i){var el=document.getElementById('tt_'+i);if(el)DB.timetable[ttDay][p]=el.value;});dbS();toast(ttDay+' saved!',false);render();}
+function saveTT(){if(!DB.timetable[ttDay])DB.timetable[ttDay]={};PERIODS.forEach(function(p,i){var el=document.getElementById('tt_'+i);if(el)DB.timetable[ttDay][p]=el.value;});dbSWithSync();toast(ttDay+' saved!',false);render();}
 function pgSettings(){
   var tc=[{id:'orange',c:'#f97316'},{id:'blue',c:'#3b82f6'},{id:'green',c:'#22c55e'},{id:'purple',c:'#8b5cf6'},{id:'red',c:'#ef4444'}];
   return '<div class="card"><div class="card-title">⚙️ Settings</div>'+

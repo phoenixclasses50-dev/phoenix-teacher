@@ -244,16 +244,23 @@ function showSyncBar(msg, isErr) {
 var API_URL='https://script.google.com/macros/s/AKfycbwZA0AVGXn-DZikhmTTlv6uDhAvrbobyAKP6e1UYor2f6YYTSmUr-5U_eQ0L813h77U/exec';
 
 function syncToSheets(){
-  // Reset all locks — allow manual sync always
   window._blockSync=false;
   window._loadingFromSheets=false;
   if(window._syncingToSheets){return;}
   window._syncingToSheets=true;
-  // Safety: auto-release lock after 15 seconds in case fetch hangs
   clearTimeout(window._syncLockTimer);
-  window._syncLockTimer=setTimeout(function(){window._syncingToSheets=false;},15000);
+  window._syncLockTimer=setTimeout(function(){window._syncingToSheets=false;},30000);
   showSyncBar('☁️ Firebase ला save करत आहे...',false);
   try{
+    var FB_BASE='https://phoenix-classes-5050-default-rtdb.asia-southeast1.firebasedatabase.app/phoenixClasses';
+    // boardResults photos वेगळ्या brPhotos node मध्ये save
+    var brPhotos={};
+    var boardResultsClean=(DB.boardResults||[]).map(function(r,i){
+      if(r.photo){brPhotos[i]=r.photo;}
+      var rc={};for(var k in r)if(k!=='photo')rc[k]=r[k];
+      return rc;
+    });
+    // Main data — photos आणि brPhotos शिवाय
     var data={
       students:DB.students,
       attendance:DB.attendance,
@@ -266,39 +273,48 @@ function syncToSheets(){
       materials:DB.materials||[],
       homework:DB.homework||{},
       timetable:DB.timetable||{},
-      photos:DB.photos||{},
-      boardResults:DB.boardResults||[],
+      boardResults:boardResultsClean,
       updatedAt:Date.now()
     };
-    var fbUrl='https://phoenix-classes-5050-default-rtdb.asia-southeast1.firebasedatabase.app/phoenixClasses.json';
-    console.log('Firebase PUT to:', fbUrl);
-    console.log('Data size:', JSON.stringify(data).length, 'chars');
-    fetch(fbUrl,{
+    console.log('Main data size:', JSON.stringify(data).length, 'chars');
+    // Step 1: Main data PUT
+    fetch(FB_BASE+'/main.json',{
       method:'PUT',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(data)
     }).then(function(r){
+      if(!r.ok){r.text().then(function(t){console.error('Main PUT error:',t);});showSyncBar('⚠️ Save failed (main): '+r.status,true);window._syncingToSheets=false;clearTimeout(window._syncLockTimer);return Promise.reject('main');}
+      // Step 2: Student photos
+      return fetch(FB_BASE+'/photos.json',{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(DB.photos||{})
+      });
+    }).then(function(r){
+      if(!r||!r.ok){showSyncBar('⚠️ Photos save failed',true);window._syncingToSheets=false;clearTimeout(window._syncLockTimer);return Promise.reject('photos');}
+      // Step 3: Board result photos
+      return fetch(FB_BASE+'/brPhotos.json',{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(brPhotos)
+      });
+    }).then(function(r){
       window._syncingToSheets=false;
       clearTimeout(window._syncLockTimer);
-      console.log('Firebase response status:', r.status);
-      if(r.ok){
-        showSyncBar('✅ Firebase मध्ये save झाले!',false);
-      }else{
-        r.text().then(function(t){console.error('Firebase error body:',t);});
-        showSyncBar('⚠️ Save failed: '+r.status,true);
-      }
+      if(r&&r.ok){showSyncBar('✅ Firebase मध्ये save झाले!',false);}
+      else{showSyncBar('⚠️ BR Photos save failed',true);}
     }).catch(function(err){
+      if(err==='main'||err==='photos')return;
       window._syncingToSheets=false;
       clearTimeout(window._syncLockTimer);
-      console.error('Firebase fetch error:', err);
+      console.error('Firebase error:', err);
       showSyncBar('❌ Error: '+err.message,true);
     });
   }catch(e){
     window._syncingToSheets=false;
-    showSyncBar('❌ Error: '+e.message,true);
+    showSyncBar('❌ Error: डाटा सेव आधीच फाइल बघा',true);
   }
 }
-
 function syncChunked(data){
   // Firebase uses PUT directly — no chunking needed
   syncToSheets();
@@ -309,47 +325,86 @@ function loadFromSheets(){
   window._loadingFromSheets=true;
   window._blockSync=true;
   showSyncBar('☁️ Firebase मधून load करत आहे...',false);
-  fetch('https://phoenix-classes-5050-default-rtdb.asia-southeast1.firebasedatabase.app/phoenixClasses.json')
-    .then(function(r){return r.json();})
-    .then(function(ld){
+  var FB_BASE='https://phoenix-classes-5050-default-rtdb.asia-southeast1.firebasedatabase.app/phoenixClasses';
+  var mainData=null, photosData=null, brPhotosData=null;
+
+  function applyAndFinish(){
+    var ld=mainData;
+    if(ld&&ld.students){
+      DB.students=ld.students||[];
+      DB.attendance=ld.attendance||{};
+      DB.marks=ld.marks||{tests:[],data:{}};
+      if(ld.fees){
+        if(!ld.fees.classFee)ld.fees.classFee={};
+        if(!ld.fees.payments)ld.fees.payments={};
+        DB.fees=ld.fees;
+      }
+      if(ld.notices&&ld.notices.length>0)DB.notices=ld.notices;
+      else if(!DB.notices)DB.notices=[];
+      if(ld.schedule)DB.schedule=ld.schedule;
+      if(ld.starStudent!==undefined)DB.starStudent=ld.starStudent;
+      if(ld.remarks)DB.remarks=ld.remarks;
+      if(ld.materials)DB.materials=ld.materials;
+      else if(!DB.materials)DB.materials=[];
+      if(ld.homework)DB.homework=ld.homework;
+      else if(!DB.homework)DB.homework={};
+      if(ld.timetable)DB.timetable=ld.timetable;
+      // Photos — वेगळ्या node मधून load
+      if(photosData)DB.photos=photosData;
+      // boardResults — brPhotos परत मेर्ज करा
+      if(ld.boardResults){
+        DB.boardResults=ld.boardResults.map(function(r,i){
+          var rc={};for(var k in r)rc[k]=r[k];
+          if(brPhotosData&&brPhotosData[i])rc.photo=brPhotosData[i];
+          return rc;
+        });
+      } else if(!DB.boardResults)DB.boardResults=[];
+      dbS();
+      window._blockSync=false;
       window._loadingFromSheets=false;
-      if(ld&&ld.students){
-        DB.students=ld.students||[];
-        DB.attendance=ld.attendance||{};
-        DB.marks=ld.marks||{tests:[],data:{}};
-        if(ld.fees){
-          if(!ld.fees.classFee)ld.fees.classFee={};
-          if(!ld.fees.payments)ld.fees.payments={};
-          DB.fees=ld.fees;
-        }
-        if(ld.notices&&ld.notices.length>0)DB.notices=ld.notices;
-        else if(!DB.notices)DB.notices=[];
-        if(ld.schedule)DB.schedule=ld.schedule;
-        if(ld.starStudent!==undefined)DB.starStudent=ld.starStudent;
-        if(ld.remarks)DB.remarks=ld.remarks;
-        if(ld.materials)DB.materials=ld.materials;
-        else if(!DB.materials)DB.materials=[];
-        if(ld.homework)DB.homework=ld.homework;
-        else if(!DB.homework)DB.homework={};
-        if(ld.timetable)DB.timetable=ld.timetable;
-        if(ld.photos)DB.photos=ld.photos;
-        if(ld.boardResults)DB.boardResults=ld.boardResults;
-        else if(!DB.boardResults)DB.boardResults=[];
-        dbS();
-        window._blockSync=false;
-        render();
-        showSyncBar('✅ Synced! '+DB.students.length+' students.',false);
-      }else{
+      render();
+      showSyncBar('✅ Synced! '+DB.students.length+' students.',false);
+    } else {
+      // Old format fallback (phoenixClasses.json madhe direct data hota)
+      if(ld&&(ld.main||ld.brPhotos)){
+        // Nesting detected, try /main node
+        window._loadingFromSheets=false;
         window._blockSync=false;
         showSyncBar('⚠️ Firebase मध्ये data नाही.',false);
+      } else {
+        window._blockSync=false;
+        window._loadingFromSheets=false;
+        showSyncBar('⚠️ Firebase मध्ये data नाही.',false);
       }
+    }
+  }
+
+  // Load main data
+  fetch(FB_BASE+'/main.json')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      // Old structure fallback: if /main doesn’t have students, try root
+      if(d&&d.students){
+        mainData=d;
+      } else {
+        // Old format — root node madhe direct hota
+        mainData=d;
+      }
+      return fetch(FB_BASE+'/photos.json');
+    }).then(function(r){return r.json();})
+    .then(function(d){
+      photosData=d||{};
+      return fetch(FB_BASE+'/brPhotos.json');
+    }).then(function(r){return r.json();})
+    .then(function(d){
+      brPhotosData=d||{};
+      applyAndFinish();
     }).catch(function(err){
       window._loadingFromSheets=false;
       window._blockSync=false;
       showSyncBar('❌ Load failed: '+err.message,true);
     });
 }
-
 
 function dbSWithSync(){
   dbS();
@@ -1605,7 +1660,7 @@ function pgScheduleMgr(){
   return '<div class="card"><div class="card-title">➕ Add Test Schedule</div>'+
     '<div class="mb"><label>Test/Event Title</label><input id="sc-title" placeholder="e.g. Unit Test 1, Half Yearly Exam"/></div>'+
     '<div class="grid2 mb"><div><label>Class</label><select id="sc-cls">'+
-    ['All'].concat(CL_FULL).map(function(c){return '<option>'+c+'</option>';}).join('')+'</select></div>'+
+    ['All'].concat(CL).map(function(c){return '<option>'+c+'</option>';}).join('')+'</select></div>'+
     '<div><label>Subject</label><select id="sc-sub">'+
     ['All'].concat(SB).map(function(s){return '<option>'+s+'</option>';}).join('')+'</select></div></div>'+
     '<div class="grid2 mb"><div><label>Date</label><input type="date" id="sc-date" value="'+aDt+'"/></div>'+

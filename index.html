@@ -132,7 +132,24 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
 <input type="file" id="photoFile" accept="image/*" style="display:none" onchange="uploadPhoto(this)"/>
 
 <script>
-// ── GOOGLE SHEETS API ────────────────────────────────────────────
+// ── SYNC BAR ─────────────────────────────────────────────────────
+function showSyncBar(msg, isErr) {
+  var bar = document.getElementById('syncBar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'syncBar';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:8px 14px;font-size:12px;font-weight:700;z-index:9998;text-align:center;transition:all .3s;';
+    document.body.appendChild(bar);
+  }
+  bar.textContent = msg;
+  bar.style.background = isErr ? '#ef4444' : '#22c55e';
+  bar.style.color = '#fff';
+  bar.style.display = 'block';
+  clearTimeout(bar._hideTimer);
+  bar._hideTimer = setTimeout(function() { bar.style.display = 'none'; }, 3500);
+}
+
+// ── FIREBASE API ────────────────────────────────────────────────
 var API_URL='https://script.google.com/macros/s/AKfycbwZA0AVGXn-DZikhmTTlv6uDhAvrbobyAKP6e1UYor2f6YYTSmUr-5U_eQ0L813h77U/exec';
 
 function syncToSheets(){
@@ -141,6 +158,9 @@ function syncToSheets(){
   window._loadingFromSheets=false;
   if(window._syncingToSheets){return;}
   window._syncingToSheets=true;
+  // Safety: auto-release lock after 15 seconds in case fetch hangs
+  clearTimeout(window._syncLockTimer);
+  window._syncLockTimer=setTimeout(function(){window._syncingToSheets=false;},15000);
   showSyncBar('☁️ Firebase ला save करत आहे...',false);
   try{
     var data={
@@ -166,6 +186,7 @@ function syncToSheets(){
       body:JSON.stringify(data)
     }).then(function(r){
       window._syncingToSheets=false;
+      clearTimeout(window._syncLockTimer);
       console.log('Firebase response status:', r.status);
       if(r.ok){
         showSyncBar('✅ Firebase मध्ये save झाले!',false);
@@ -175,6 +196,7 @@ function syncToSheets(){
       }
     }).catch(function(err){
       window._syncingToSheets=false;
+      clearTimeout(window._syncLockTimer);
       console.error('Firebase fetch error:', err);
       showSyncBar('❌ Error: '+err.message,true);
     });

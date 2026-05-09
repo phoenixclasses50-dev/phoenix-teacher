@@ -1058,7 +1058,7 @@ function pgMrk(){
   var tests=DB.marks.tests||[],md=DB.marks.data||{};
   var tlist=tests.length===0?'<div class="empty">No tests yet.</div>':
     tests.map(function(t){
-      var sl=DB.students.filter(function(s){return (s.cls===t.cls||s.cls.indexOf(t.cls)>=0)&&(s.subject===t.subject||s.subject==='Both'||t.subject==='Both');});
+      var sl=DB.students.filter(function(s){return s.cls===t.cls&&(s.subject===t.subject||s.subject==='Both'||t.subject==='Both');});
       var vals=sl.map(function(s){return Number((md[t.id]||{})[s.id]||0);}).filter(function(v){return v>0;});
       var avg=vals.length?(vals.reduce(function(a,b){return a+b;},0)/vals.length).toFixed(1):'—';
       return '<div class="titem '+(selT===t.id?'on':'')+'" style="display:flex;justify-content:space-between;align-items:center">'+
@@ -1069,34 +1069,53 @@ function pgMrk(){
         '</div>';
     }).join('');
   var stObj=null;for(var i=0;i<tests.length;i++){if(tests[i].id===selT){stObj=tests[i];break;}}
-  var ts=stObj?DB.students.filter(function(s){return (s.cls===stObj.cls||s.cls.indexOf(stObj.cls)>=0)&&(s.subject===stObj.subject||s.subject==='Both'||stObj.subject==='Both');}):[];
+  var ts=stObj?DB.students.filter(function(s){return s.cls===stObj.cls&&(s.subject===stObj.subject||s.subject==='Both'||stObj.subject==='Both');}):[];
   var mp='<div class="empty">Select a test to enter marks</div>';
   if(stObj){
-    var rows=ts.length===0?'<tr><td colspan="4" class="empty">No students.</td></tr>':
+    var rows=ts.length===0?'<tr><td colspan="5" class="empty">No students.</td></tr>':
       ts.map(function(s,i){
-        var val=mEn[s.id]||'';
-        var pct=val?(Number(val)/stObj.maxMarks)*100:null;
-        var g=pct===null?'—':pct>=75?'A':pct>=60?'B':pct>=40?'C':'D';
-        var gc=g==='A'?'#22c55e':g==='B'?'#3b82f6':g==='C'?'#eab308':g==='D'?'#ef4444':'var(--muted)';
-        return '<tr><td>'+photoEl(s.id,s.name)+'</td><td style="font-weight:700">'+esc(s.name)+'</td>'+
-          '<td><input type="number" style="width:65px" min="0" max="'+stObj.maxMarks+'" value="'+esc(val)+'" onchange="mEn['+s.id+']=this.value" placeholder="0"/></td>'+
+        var val=mEn[s.id];
+        var isAbs=(val==='AB'||val==='ab');
+        var numVal=(!isAbs&&val!==undefined&&val!=='')?val:'';
+        var pct=numVal?(Number(numVal)/stObj.maxMarks)*100:null;
+        var g=isAbs?'Absent':pct===null?'—':pct>=75?'A':pct>=60?'B':pct>=40?'C':'D';
+        var gc=isAbs?'#94a3b8':g==='A'?'#22c55e':g==='B'?'#3b82f6':g==='C'?'#eab308':g==='D'?'#ef4444':'var(--muted)';
+        var absBtnStyle=isAbs?
+          'background:#64748b;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer':
+          'background:var(--bg);color:var(--muted);border:1.5px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer';
+        return '<tr>'+
+          '<td>'+photoEl(s.id,s.name)+'</td>'+
+          '<td style="font-weight:700">'+esc(s.name)+'</td>'+
+          '<td><input type="number" style="width:60px;'+(isAbs?'opacity:0.3;pointer-events:none':'')+'" min="0" max="'+stObj.maxMarks+'" value="'+esc(numVal)+'" onchange="mEn['+s.id+']=this.value" placeholder="0" '+(isAbs?'disabled':'')+'/></td>'+
+          '<td><button style="'+absBtnStyle+'" onclick="toggleAbsent('+s.id+')">Absent</button></td>'+
           '<td>'+bdg(g,gc)+'</td></tr>';
       }).join('');
     mp='<div style="font-weight:800;font-size:15px;margin-bottom:4px">'+esc(stObj.testName)+'</div>'+
       '<div style="color:var(--muted);font-size:11px;margin-bottom:12px">'+stObj.cls+' · '+stObj.subject+' · Max: '+stObj.maxMarks+'</div>'+
-      '<table><thead><tr><th></th><th>Student</th><th>Marks/'+stObj.maxMarks+'</th><th>Grade</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:10px;background:var(--bg);border-radius:8px;padding:8px 10px">'+
+      '💡 Absent button दाबा — marks input disabled होईल आणि "Absent" दिसेल</div>'+
+      '<div style="overflow-x:auto"><table><thead><tr><th></th><th>Student</th><th>Marks/'+stObj.maxMarks+'</th><th>Absent?</th><th>Grade</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
       (ts.length>0?'<button class="btn btn-green" onclick="saveMrk()">💾 Save Marks</button>':'');
   }
   return topbar('Marks & Results')+
     '<div class="card"><div class="card-title">➕ New Test</div>'+
     '<div class="mb"><label>Test Name</label><input id="tn" placeholder="e.g. Unit Test 1"/></div>'+
-    '<div class="grid2 mb"><div><label>Class</label><select id="tc">'+CL.map(function(c){return '<option>'+c+'</option>';}).join('')+'</select></div>'+
+    '<div class="grid2 mb">'+
+    '<div><label>Class</label><select id="tc">'+CL_FULL.map(function(c){return '<option>'+c+'</option>';}).join('')+'</select></div>'+
     '<div><label>Subject</label><select id="tsu">'+SB.map(function(s){return '<option>'+s+'</option>';}).join('')+'</select></div></div>'+
     '<div class="grid2 mb"><div><label>Max Marks</label><input type="number" id="tm" value="100"/></div>'+
     '<div><label>Date</label><input type="date" id="td" value="'+aDt+'"/></div></div>'+
     '<button class="btn btn-orange" onclick="addT()">Create Test</button></div>'+
     '<div class="card"><div class="card-title">📝 All Tests</div>'+tlist+'</div>'+
     '<div class="card">'+mp+'</div>';
+}
+function toggleAbsent(sid){
+  if(mEn[sid]==='AB'){
+    delete mEn[sid]; // absent काढतो
+  } else {
+    mEn[sid]='AB'; // absent mark करतो
+  }
+  render();
 }
 function addT(){
   var tn=document.getElementById('tn');if(!tn||!tn.value.trim()){toast('Enter test name!',true);return;}

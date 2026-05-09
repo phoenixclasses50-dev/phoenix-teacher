@@ -176,6 +176,7 @@ function syncToSheets(){
       homework:DB.homework||{},
       timetable:DB.timetable||{},
       photos:DB.photos||{},
+      boardResults:DB.boardResults||[],
       updatedAt:Date.now()
     };
     var fbUrl='https://phoenix-classes-5050-default-rtdb.asia-southeast1.firebasedatabase.app/phoenixClasses.json';
@@ -241,6 +242,8 @@ function loadFromSheets(){
         else if(!DB.homework)DB.homework={};
         if(ld.timetable)DB.timetable=ld.timetable;
         if(ld.photos)DB.photos=ld.photos;
+        if(ld.boardResults)DB.boardResults=ld.boardResults;
+        else if(!DB.boardResults)DB.boardResults=[];
         dbS();
         window._blockSync=false;
         render();
@@ -285,7 +288,7 @@ var DB={
   },
     payments:{} // payments[studentId] = [{date, amount, note}]
   },
-  timetable:{},settings:{theme:'orange',darkMode:true},photos:{},notices:[],schedule:[],starStudent:null,remarks:{},materials:[]
+  timetable:{},settings:{theme:'orange',darkMode:true},photos:{},notices:[],schedule:[],starStudent:null,remarks:{},materials:[],boardResults:[]
 };
 function dbS(){try{localStorage.setItem('pxDB3',JSON.stringify(DB));}catch(e){}}
 function dbL(){
@@ -303,6 +306,7 @@ function dbL(){
     if(!DB.fees.classFee)DB.fees.classFee={'Class 8':3000,'Class 9':3500,'Class 10':4000};
     if(!DB.fees.payments)DB.fees.payments={};
     if(!DB.homework)DB.homework={};
+    if(!DB.boardResults)DB.boardResults=[];
   }catch(e){}
 }
 
@@ -1361,9 +1365,10 @@ function pgMore(){
     '<button class="btn '+(moreTab==='materials'?'btn-orange':'btn-gray')+'" style="margin-top:0;flex:1;padding:9px;font-size:12px" onclick="moreTab=\'materials\';render()">📝 Notes</button>'+
     '<button class="btn '+(moreTab==='schedule'?'btn-orange':'btn-gray')+'" style="margin-top:0;flex:1;padding:9px;font-size:12px" onclick="moreTab=\'schedule\';render()">📅 Schedule</button>'+
     '<button class="btn '+(moreTab==='star'?'btn-orange':'btn-gray')+'" style="margin-top:0;flex:1;padding:9px;font-size:12px" onclick="moreTab=\'star\';render()">⭐ Star</button>'+
+    '<button class="btn '+(moreTab==='board'?'btn-orange':'btn-gray')+'" style="margin-top:0;flex:1;padding:9px;font-size:12px" onclick="moreTab=\'board\';render()">🏆 Board</button>'+
     '<button class="btn '+(moreTab==='timetable'?'btn-orange':'btn-gray')+'" style="margin-top:0;flex:1;padding:9px;font-size:12px" onclick="moreTab=\'timetable\';render()">📅 Time</button>'+
     '<button class="btn '+(moreTab==='settings'?'btn-orange':'btn-gray')+'" style="margin-top:0;flex:1;padding:9px;font-size:12px" onclick="moreTab=\'settings\';render()">⚙️ Settings</button>'+
-    '</div>'+(moreTab==='notices'?pgNotices():moreTab==='materials'?pgMaterials():moreTab==='schedule'?pgScheduleMgr():moreTab==='star'?pgStarStudent():moreTab==='timetable'?pgTimetable():pgSettings());
+    '</div>'+(moreTab==='notices'?pgNotices():moreTab==='materials'?pgMaterials():moreTab==='schedule'?pgScheduleMgr():moreTab==='star'?pgStarStudent():moreTab==='board'?pgBoardResults():moreTab==='timetable'?pgTimetable():pgSettings());
 }
 
 function pgMaterials(){
@@ -1608,6 +1613,88 @@ function clearAll(){
   syncToSheets();
   render();
   toast('All data cleared and synced!',false);
+}
+
+// ── BOARD RESULTS ────────────────────────────────────────────────
+var brPhotoId=null;
+function triggerBRPhoto(idx){brPhotoId=idx;document.getElementById('brPhotoFile').click();}
+function uploadBRPhoto(inp){
+  var file=inp.files[0];if(!file||brPhotoId===null)return;
+  var r=new FileReader();
+  r.onload=function(ev){
+    if(!DB.boardResults[brPhotoId])return;
+    DB.boardResults[brPhotoId].photo=ev.target.result;
+    dbSWithSync();render();toast('Photo updated!',false);
+  };
+  r.readAsDataURL(file);inp.value='';
+}
+function pgBoardResults(){
+  if(!DB.boardResults)DB.boardResults=[];
+  var results=DB.boardResults;
+  var gradeColor=function(pct){return pct>=90?'#22c55e':pct>=75?'#3b82f6':pct>=60?'#eab308':'#f97316';};
+  var gradeLabel=function(pct){return pct>=90?'Distinction':pct>=75?'First Class':pct>=60?'Second Class':'Pass';};
+
+  var list=results.length===0?'<div class="empty">अजून कोणतेही Board Result add केले नाही.</div>':
+    results.map(function(s,i){
+      var pct=+s.percentage||0;
+      var gc=gradeColor(pct);
+      var photoHtml=s.photo?
+        '<img src="'+s.photo+'" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:3px solid '+gc+';cursor:pointer;flex-shrink:0" onclick="triggerBRPhoto('+i+')"/>':
+        '<div onclick="triggerBRPhoto('+i+')" style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;cursor:pointer;flex-shrink:0;border:3px solid '+gc+'">'+esc((s.name||'?')[0].toUpperCase())+'</div>';
+      return '<div style="background:var(--bg);border-radius:14px;padding:14px;margin-bottom:10px;border:1.5px solid '+gc+'22">'+
+        '<div style="display:flex;gap:12px;align-items:center">'+
+        photoHtml+
+        '<div style="flex:1">'+
+        '<div style="font-weight:800;font-size:14px">'+esc(s.name)+'</div>'+
+        '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc(s.cls||'Class 10')+' · '+esc(s.medium||'')+'</div>'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">'+
+        '<div style="font-size:24px;font-weight:800;color:'+gc+'">'+pct+'%</div>'+
+        '<span style="background:'+gc+'22;color:'+gc+';border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700">'+gradeLabel(pct)+'</span>'+
+        '</div>'+
+        (s.subjects?'<div style="font-size:11px;color:var(--muted);margin-top:4px">'+esc(s.subjects)+'</div>':'')+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">'+
+        '<button class="btn-sm" style="background:#ef4444" onclick="delBoardResult('+i+')">✕</button>'+
+        '</div></div></div>';
+    }).join('');
+
+  return '<input type="file" id="brPhotoFile" accept="image/*" style="display:none" onchange="uploadBRPhoto(this)"/>'+
+    '<div class="card" style="border-color:var(--accent)">'+
+    '<div class="card-title">🏆 Board Result 2025 Add करा</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:12px">दहावीच्या Board निकालात उत्तीर्ण झालेल्या विद्यार्थ्यांची माहिती add करा. Website वर automatically दिसेल.</div>'+
+    '<div class="mb"><label>विद्यार्थ्याचे नाव</label><input id="br-name" placeholder="पूर्ण नाव टाका"/></div>'+
+    '<div class="grid2 mb">'+
+    '<div><label>Percentage (%)</label><input id="br-pct" type="number" min="0" max="100" placeholder="e.g. 92.40"/></div>'+
+    '<div><label>Medium</label><select id="br-med"><option value="Semi-English">Semi-English</option><option value="Marathi">Marathi</option></select></div></div>'+
+    '<div class="mb"><label>Subjects (Optional)</label><input id="br-sub" placeholder="e.g. Maths: 98, Science: 95"/></div>'+
+    '<button class="btn btn-orange" onclick="addBoardResult()">🏆 Add Result</button>'+
+    '</div>'+
+    '<div class="card"><div class="card-title">🏆 Board Results 2025 — '+results.length+' Students</div>'+list+'</div>';
+}
+function addBoardResult(){
+  var name=document.getElementById('br-name');
+  var pct=document.getElementById('br-pct');
+  if(!name||!name.value.trim()){toast('नाव टाका!',true);return;}
+  if(!pct||!pct.value){toast('Percentage टाका!',true);return;}
+  if(!DB.boardResults)DB.boardResults=[];
+  DB.boardResults.push({
+    id:Date.now(),
+    name:name.value.trim(),
+    percentage:parseFloat(pct.value).toFixed(2),
+    cls:'Class 10',
+    medium:document.getElementById('br-med').value,
+    subjects:document.getElementById('br-sub').value.trim(),
+    photo:null,
+    year:'2025'
+  });
+  // Sort by percentage descending
+  DB.boardResults.sort(function(a,b){return parseFloat(b.percentage)-parseFloat(a.percentage);});
+  dbSWithSync();toast(name.value.trim()+' चा result add झाला! 🎉',false);render();
+}
+function delBoardResult(idx){
+  if(!confirm('हा result delete करायचा?'))return;
+  DB.boardResults.splice(idx,1);
+  dbSWithSync();render();toast('Deleted.',false);
 }
 
 // ── ROUTER ────────────────────────────────────────────────────────

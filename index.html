@@ -136,8 +136,10 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
 var API_URL='https://script.google.com/macros/s/AKfycbwZA0AVGXn-DZikhmTTlv6uDhAvrbobyAKP6e1UYor2f6YYTSmUr-5U_eQ0L813h77U/exec';
 
 function syncToSheets(){
+  // Reset all locks — allow manual sync always
+  window._blockSync=false;
+  window._loadingFromSheets=false;
   if(window._syncingToSheets){return;}
-  if(window._blockSync){return;}
   window._syncingToSheets=true;
   showSyncBar('☁️ Firebase ला save करत आहे...',false);
   try{
@@ -155,19 +157,25 @@ function syncToSheets(){
       timetable:DB.timetable||{},
       updatedAt:Date.now()
     };
-    fetch('https://phoenix-classes-5050-default-rtdb.asia-southeast1.firebasedatabase.app/phoenixClasses.json',{
+    var fbUrl='https://phoenix-classes-5050-default-rtdb.asia-southeast1.firebasedatabase.app/phoenixClasses.json';
+    console.log('Firebase PUT to:', fbUrl);
+    console.log('Data size:', JSON.stringify(data).length, 'chars');
+    fetch(fbUrl,{
       method:'PUT',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(data)
     }).then(function(r){
       window._syncingToSheets=false;
+      console.log('Firebase response status:', r.status);
       if(r.ok){
         showSyncBar('✅ Firebase मध्ये save झाले!',false);
       }else{
+        r.text().then(function(t){console.error('Firebase error body:',t);});
         showSyncBar('⚠️ Save failed: '+r.status,true);
       }
     }).catch(function(err){
       window._syncingToSheets=false;
+      console.error('Firebase fetch error:', err);
       showSyncBar('❌ Error: '+err.message,true);
     });
   }catch(e){

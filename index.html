@@ -1605,7 +1605,7 @@ function pgScheduleMgr(){
   return '<div class="card"><div class="card-title">➕ Add Test Schedule</div>'+
     '<div class="mb"><label>Test/Event Title</label><input id="sc-title" placeholder="e.g. Unit Test 1, Half Yearly Exam"/></div>'+
     '<div class="grid2 mb"><div><label>Class</label><select id="sc-cls">'+
-    ['All'].concat(CL).map(function(c){return '<option>'+c+'</option>';}).join('')+'</select></div>'+
+    ['All'].concat(CL_FULL).map(function(c){return '<option>'+c+'</option>';}).join('')+'</select></div>'+
     '<div><label>Subject</label><select id="sc-sub">'+
     ['All'].concat(SB).map(function(s){return '<option>'+s+'</option>';}).join('')+'</select></div></div>'+
     '<div class="grid2 mb"><div><label>Date</label><input type="date" id="sc-date" value="'+aDt+'"/></div>'+

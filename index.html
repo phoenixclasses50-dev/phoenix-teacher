@@ -365,17 +365,33 @@ function loadFromSheets(){
       render();
       showSyncBar('✅ Synced! '+DB.students.length+' students.',false);
     } else {
-      // Old format fallback (phoenixClasses.json madhe direct data hota)
-      if(ld&&(ld.main||ld.brPhotos)){
-        // Nesting detected, try /main node
-        window._loadingFromSheets=false;
-        window._blockSync=false;
-        showSyncBar('⚠️ Firebase मध्ये data नाही.',false);
-      } else {
-        window._blockSync=false;
-        window._loadingFromSheets=false;
-        showSyncBar('⚠️ Firebase मध्ये data नाही.',false);
-      }
+      // /main.json madhe students nahi — root node try karo (old format fallback)
+      showSyncBar('🔄 Root node check करत आहे...',false);
+      fetch(FB_BASE+'.json')
+        .then(function(r){return r.json();})
+        .then(function(rootData){
+          if(rootData&&rootData.students){
+            // Root node la direct students ahet (very old format)
+            mainData=rootData;
+            if(rootData.photos){photosData=rootData.photos;}
+            if(rootData.brPhotos){brPhotosData=rootData.brPhotos;}
+            applyAndFinish();
+          } else if(rootData&&rootData.main&&rootData.main.students){
+            // /main sub-node madhe data ahe
+            mainData=rootData.main;
+            if(rootData.photos){photosData=rootData.photos;}
+            if(rootData.brPhotos){brPhotosData=rootData.brPhotos;}
+            applyAndFinish();
+          } else {
+            window._blockSync=false;
+            window._loadingFromSheets=false;
+            showSyncBar('⚠️ Firebase मध्ये valid data नाही.',false);
+          }
+        }).catch(function(){
+          window._blockSync=false;
+          window._loadingFromSheets=false;
+          showSyncBar('⚠️ Firebase load failed.',true);
+        });
     }
   }
 

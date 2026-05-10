@@ -683,13 +683,17 @@ function getYearlyFee(cls,subject,sid){
   var cf=DB.fees.classFee||{};
   if(!cls)return 0;
   if(subject){
-    // Exact match: "Class 10 Semi-English - Both" (Setup format)
-    var key=cls+' - '+subject;
-    if(cf[key]>0)return cf[key];
-    // Without medium: "Class 10 - Both"
-    var base=cls.replace(' Semi-English','').replace(' Marathi','').trim();
-    var key2=base+' - '+subject;
+    // Exact match: "Class 8 Semi-English - Maths" (full key as stored in DB)
+    var key1=cls+' - '+subject;
+    if(cf[key1]>0)return cf[key1];
+    // cls already includes medium (e.g. "Class 8 Semi-English"), subject e.g. "Maths"
+    // DB key format: "Class 8 Semi-English - Maths"
+    var key2=cls+' - '+subject;
     if(cf[key2]>0)return cf[key2];
+    // Without medium: base class + subject
+    var base=cls.replace(' Semi-English','').replace(' Marathi','').trim();
+    var key3=base+' - '+subject;
+    if(cf[key3]>0)return cf[key3];
   }
   // Just class name
   if(cf[cls]>0)return cf[cls];
@@ -1715,6 +1719,39 @@ function delPay(sid,idx){
   DB.fees.payments[sid].splice(idx,1);
   dbSWithSync();render();toast('Payment deleted!',false);
 }
+// History मधून receipt उघडतो — safe way (no inline JSON)
+function openHistoryReceipt(sid, idx){
+  var ps = DB.students.find(function(s){ return s.id===sid; });
+  if(!ps){ toast('Student सापडला नाही!', true); return; }
+  var pays = DB.fees.payments[sid]||[];
+  var p = pays[idx];
+  if(!p){ toast('Payment सापडली नाही!', true); return; }
+  var rcNo = p.receiptNo || ('RC-'+String(idx).padStart(4,'0'));
+  var info = generateReceipt(ps, p, rcNo);
+  // WhatsApp option for history receipts too
+  if(ps.phone && info){
+    setTimeout(function(){
+      if(confirm('WhatsApp वर receipt पाठवायची का '+ps.name+' च्या parent ला?')){
+        var msg='नमस्कार पालक 🙏\n\n✅ *फी पावती — Phoenix Classes*\n'+
+          '━━━━━━━━━━━━━━━━\n'+
+          '🧾 Receipt No: *'+rcNo+'*\n'+
+          '👤 विद्यार्थी: *'+ps.name+'*\n'+
+          '📚 वर्ग: '+ps.cls+'\n'+
+          '🗣️ माध्यम: '+(ps.cls.indexOf('Semi-English')>=0?'Semi-English':'Marathi')+'\n'+
+          '📅 दिनांक: '+fmtDate(p.date)+'\n'+
+          '━━━━━━━━━━━━━━━━\n'+
+          '💰 भरलेली रक्कम: *₹'+p.amount+'*\n'+
+          '📊 एकूण भरलेली: ₹'+info.paid+'\n'+
+          '🏫 वार्षिक फी: ₹'+info.fee+'\n'+
+          (info.fullyClear?'✅ *Fee Fully Cleared! 🎉*':'⚠️ बाकी रक्कम: ₹'+info.bal)+'\n'+
+          '━━━━━━━━━━━━━━━━\n'+
+          'धन्यवाद! 🔥 Phoenix Classes\n9503949009 / 9096815310';
+        waOpen(ps.phone, msg);
+      }
+    }, 400);
+  }
+}
+
 function delAtt(date,cls){
   if(!confirm('Delete attendance for '+cls+' on '+date+'?'))return;
   var key=date+'_'+cls;
@@ -1775,6 +1812,7 @@ function generateReceipt(ps, payment, receiptNo){
     '</div>'+
     '<div class="row"><span class="label">विद्यार्थी</span><span class="value">'+ps.name+'</span></div>'+
     '<div class="row"><span class="label">वर्ग</span><span class="value">'+ps.cls+'</span></div>'+
+    '<div class="row"><span class="label">माध्यम</span><span class="value">'+(ps.cls.indexOf('Semi-English')>=0?'Semi-English (इंग्रजी)':ps.cls.indexOf('Marathi')>=0?'Marathi (मराठी)':'-')+'</span></div>'+
     '<div class="row"><span class="label">Subject</span><span class="value">'+ps.subject+'</span></div>'+
     '<div class="row"><span class="label">दिनांक</span><span class="value">'+fmtDate(payment.date)+'</span></div>'+
     (payment.note?'<div class="row"><span class="label">तपशील</span><span class="value">'+payment.note+'</span></div>':'')+
@@ -1837,6 +1875,7 @@ function savePay(){
             '🧾 Receipt No: *'+rcNo+'*\n'+
             '👤 विद्यार्थी: *'+ps.name+'*\n'+
             '📚 वर्ग: '+ps.cls+'\n'+
+            '🗣️ माध्यम: '+(ps.cls.indexOf('Semi-English')>=0?'Semi-English':'Marathi')+'\n'+
             '📅 दिनांक: '+fmtDate(payment.date)+'\n'+
             '━━━━━━━━━━━━━━━━\n'+
             '💰 भरलेली रक्कम: *₹'+payment.amount+'*\n'+
@@ -1872,7 +1911,7 @@ function pgFeeHistory(){
         '<div style="font-size:9px;color:var(--accent);font-weight:700">'+rcNo+'</div></div></div>'+
         '<div style="display:flex;align-items:center;gap:6px">'+
         '<div class="pay-amount">₹'+p.amount+'</div>'+
-        '<button class="btn-sm" style="background:#3b82f6;font-size:10px;padding:4px 7px" onclick="generateReceipt(DB.students.find(function(x){return x.id==='+s.id+';}),'+JSON.stringify(p)+',\''+rcNo+'\')">🧾</button>'+
+        '<button class="btn-sm" style="background:#3b82f6;font-size:10px;padding:4px 7px" onclick="openHistoryReceipt('+s.id+','+idx+')">🧾</button>'+
         '<button class="btn-sm btn-red" onclick="delPay('+s.id+','+idx+');feeTab=\'history\'">✕</button>'+
         '</div></div>';
     }).join('');

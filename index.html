@@ -1721,33 +1721,135 @@ function delAtt(date,cls){
   delete DB.attendance[key];
   dbSWithSync();render();toast('Attendance deleted!',false);
 }
+
+// ── FEE RECEIPT GENERATOR ────────────────────────────────────
+function generateReceipt(ps, payment, receiptNo){
+  var fee      = getYearlyFee(ps.cls, ps.subject, ps.id);
+  var paid     = getTotalPaid(ps.id);
+  var bal      = getBalance(ps.id, ps.cls, ps.subject);
+  var prevPaid = paid - payment.amount;
+  var fullyClear = bal <= 0;
+  var rcNo = receiptNo || ('RC-'+Date.now().toString().slice(-6));
+  var w = window.open('','_blank','width=400,height=600');
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/>'+
+  '<title>Fee Receipt — '+ps.name+'</title>'+
+  '<meta name="viewport" content="width=device-width,initial-scale=1"/>'+
+  '<style>'+
+  '*{box-sizing:border-box;margin:0;padding:0;}'+
+  'body{font-family:Arial,sans-serif;background:#f8fafc;padding:16px;}'+
+  '.receipt{background:#fff;border-radius:16px;padding:20px;max-width:380px;margin:0 auto;box-shadow:0 4px 24px #0001;}'+
+  '.header{text-align:center;border-bottom:2px dashed #f97316;padding-bottom:14px;margin-bottom:14px;}'+
+  '.logo{font-size:28px;margin-bottom:4px;}'+
+  '.school{font-size:18px;font-weight:800;color:#f97316;}'+
+  '.sub{font-size:11px;color:#6b7280;}'+
+  '.rc-no{background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;color:#f97316;margin:10px 0;display:inline-block;}'+
+  '.row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:13px;}'+
+  '.row:last-child{border-bottom:none;}'+
+  '.label{color:#6b7280;}'+
+  '.value{font-weight:700;color:#0f172a;}'+
+  '.amount-box{background:linear-gradient(135deg,#f97316,#ea580c);border-radius:12px;padding:14px;text-align:center;margin:14px 0;}'+
+  '.amount-box .amt{font-size:32px;font-weight:800;color:#fff;}'+
+  '.amount-box .lbl{font-size:11px;color:#fed7aa;margin-top:2px;}'+
+  '.balance-box{border-radius:10px;padding:10px;text-align:center;margin-bottom:14px;'+
+    (fullyClear?'background:#f0fdf4;border:2px solid #22c55e;':'background:#fef2f2;border:2px solid #ef4444;')+'}'+
+  '.balance-box .bal{font-size:18px;font-weight:800;color:'+(fullyClear?'#22c55e':'#ef4444')+'}'+
+  '.balance-box .bll{font-size:11px;color:'+(fullyClear?'#16a34a':'#dc2626')+';margin-top:2px;}'+
+  '.summary{background:#f8fafc;border-radius:10px;padding:10px;margin-bottom:14px;}'+
+  '.progress-bar{background:#e2e8f0;border-radius:20px;height:8px;margin-top:6px;}'+
+  '.progress-fill{background:linear-gradient(90deg,#f97316,#22c55e);border-radius:20px;height:8px;}'+
+  '.footer{text-align:center;font-size:10px;color:#94a3b8;border-top:1px dashed #e2e8f0;padding-top:12px;margin-top:4px;}'+
+  '.stamp{display:inline-block;border:2px solid #22c55e;border-radius:8px;padding:4px 12px;color:#22c55e;font-weight:800;font-size:13px;margin:8px 0;transform:rotate(-2deg);}'+
+  '.btn-row{display:flex;gap:8px;margin-top:14px;}'+
+  'button{flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;}'+
+  '.btn-print{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;}'+
+  '.btn-close{background:#f1f5f9;color:#374151;}'+
+  '@media print{.btn-row{display:none!important;}body{background:#fff;padding:0;}'+
+  '.receipt{box-shadow:none;border-radius:0;}}'+
+  '</style></head><body>'+
+  '<div class="receipt">'+
+    '<div class="header">'+
+      '<div class="logo">🔥</div>'+
+      '<div class="school">Phoenix Classes</div>'+
+      '<div class="sub">बहे-वाळवा · 9503949009 / 9096815310</div>'+
+      '<div class="rc-no">Receipt No: '+rcNo+'</div>'+
+    '</div>'+
+    '<div class="row"><span class="label">विद्यार्थी</span><span class="value">'+ps.name+'</span></div>'+
+    '<div class="row"><span class="label">वर्ग</span><span class="value">'+ps.cls+'</span></div>'+
+    '<div class="row"><span class="label">Subject</span><span class="value">'+ps.subject+'</span></div>'+
+    '<div class="row"><span class="label">दिनांक</span><span class="value">'+fmtDate(payment.date)+'</span></div>'+
+    (payment.note?'<div class="row"><span class="label">तपशील</span><span class="value">'+payment.note+'</span></div>':'')+
+    '<div class="amount-box">'+
+      '<div class="amt">₹'+payment.amount+'</div>'+
+      '<div class="lbl">भरलेली रक्कम (This Payment)</div>'+
+    '</div>'+
+    '<div class="summary">'+
+      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">'+
+        '<span style="color:#6b7280">एकूण फी</span><span style="font-weight:700">₹'+fee+'</span></div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">'+
+        '<span style="color:#6b7280">आतापर्यंत भरलेली</span><span style="font-weight:700;color:#f97316">₹'+paid+'</span></div>'+
+      '<div class="progress-bar"><div class="progress-fill" style="width:'+Math.min(100,Math.round((paid/Math.max(fee,1))*100))+'%"></div></div>'+
+      '<div style="text-align:right;font-size:10px;color:#94a3b8;margin-top:3px">'+Math.min(100,Math.round((paid/Math.max(fee,1))*100))+'% paid</div>'+
+    '</div>'+
+    '<div class="balance-box">'+
+      (fullyClear?
+        '<div class="stamp">✅ Fee Fully Cleared!</div>'+
+        '<div class="bal">₹0</div><div class="bll">कोणतीही बाकी नाही 🎉</div>':
+        '<div class="bal">₹'+bal+' बाकी</div><div class="bll">Remaining Balance</div>'
+      )+
+    '</div>'+
+    '<div class="footer">'+
+      'हे अधिकृत फी पावती आहे. · Phoenix Classes<br/>'+
+      'Generated: '+new Date().toLocaleString('mr-IN')+
+    '</div>'+
+    '<div class="btn-row">'+
+      '<button class="btn-print" onclick="window.print()">🖨️ Print</button>'+
+      '<button class="btn-close" onclick="window.close()">✕ Close</button>'+
+    '</div>'+
+  '</div>'+
+  '</body></html>');
+  w.document.close();
+  return { fee, paid, bal, fullyClear, rcNo };
+}
+
 function savePay(){
   var amt=document.getElementById('pay-amt');
   var dt=document.getElementById('pay-date');
   var note=document.getElementById('pay-note');
   if(!amt||!+amt.value){toast('Enter valid amount!',true);return;}
   if(!DB.fees.payments[payModalId])DB.fees.payments[payModalId]=[];
-  var payment={date:dt?dt.value:aDt,amount:+amt.value,note:note?note.value:''};
+  // Receipt number — sequential
+  var allPayments = Object.values(DB.fees.payments).reduce(function(a,b){return a.concat(b);},[]);
+  var rcNo = 'RC-'+(String(allPayments.length+1).padStart(4,'0'));
+  var payment={date:dt?dt.value:aDt,amount:+amt.value,note:note?note.value:'',receiptNo:rcNo};
   DB.fees.payments[payModalId].push(payment);
   dbSWithSync();
   var ps=null;for(var i=0;i<DB.students.length;i++){if(DB.students[i].id===payModalId){ps=DB.students[i];break;}}
   payModalId=undefined;
-  toast('Payment of ₹'+payment.amount+' saved!',false);
-  if(ps&&ps.phone){
-    var bal=getBalance(ps.id,ps.cls,ps.subject);
-    var msg='नमस्कार पालक,\n\n✅ *फी पावती*\nPhoenix Classes\n\n'+
-      'विद्यार्थी: *'+ps.name+'*\nवर्ग: '+ps.cls+'\n\n'+
-      '💰 भरलेली रक्कम: *₹'+payment.amount+'*\nदिनांक: '+fmtDate(payment.date)+'\n'+(payment.note?'तपशील: '+payment.note+'\n':'')+
-      '\nएकूण भरलेली फी: ₹'+getTotalPaid(ps.id)+'\nवार्षिक फी: ₹'+getYearlyFee(ps.cls,ps.subject)+'\n'+
-      (bal<=0?'✅ *Fee Fully Cleared!*':'Remaining Balance: ₹'+bal)+
-      '\n\nThank you!\nPhoenix Classes';
-    setTimeout(function(){
-      if(confirm('Send payment receipt on WhatsApp to '+ps.name+'\'s parent?')){
-        waOpen(ps.phone,msg);
-      }
-    },300);
-  }
   render();
+  toast('✅ Payment ₹'+payment.amount+' saved! Receipt No: '+rcNo,false);
+  if(ps){
+    var info = generateReceipt(ps, payment, rcNo);
+    if(ps.phone){
+      setTimeout(function(){
+        if(confirm('WhatsApp वर receipt पाठवायची का '+ps.name+' च्या parent ला?')){
+          var msg='नमस्कार पालक 🙏\n\n✅ *फी पावती — Phoenix Classes*\n'+
+            '━━━━━━━━━━━━━━━━\n'+
+            '🧾 Receipt No: *'+rcNo+'*\n'+
+            '👤 विद्यार्थी: *'+ps.name+'*\n'+
+            '📚 वर्ग: '+ps.cls+'\n'+
+            '📅 दिनांक: '+fmtDate(payment.date)+'\n'+
+            '━━━━━━━━━━━━━━━━\n'+
+            '💰 भरलेली रक्कम: *₹'+payment.amount+'*\n'+
+            '📊 एकूण भरलेली: ₹'+info.paid+'\n'+
+            '🏫 वार्षिक फी: ₹'+info.fee+'\n'+
+            (info.fullyClear?'✅ *Fee Fully Cleared! 🎉*':'⚠️ बाकी रक्कम: ₹'+info.bal)+'\n'+
+            '━━━━━━━━━━━━━━━━\n'+
+            'धन्यवाद! 🔥 Phoenix Classes\n9503949009 / 9096815310';
+          waOpen(ps.phone,msg);
+        }
+      },400);
+    }
+  }
 }
 
 function pgFeeHistory(){
@@ -1762,12 +1864,15 @@ function pgFeeHistory(){
   var rows=items.length===0?'<div class="empty">No payments recorded yet.</div>':
     items.map(function(item){
       var s=item.stu,p=item.payment,idx=item.idx;
+      var rcNo = p.receiptNo || ('RC-'+item.idx.toString().padStart(4,'0'));
       return '<div class="pay-item">'+
         '<div style="display:flex;gap:10px;align-items:center">'+photoEl(s.id,s.name)+
         '<div><div style="font-weight:700">'+esc(s.name)+'</div>'+
-        '<div style="font-size:10px;color:var(--muted)">'+s.cls+' · '+fmtDate(p.date)+(p.note?' · '+esc(p.note):'')+'</div></div></div>'+
-        '<div style="display:flex;align-items:center;gap:8px">'+
+        '<div style="font-size:10px;color:var(--muted)">'+s.cls+' · '+fmtDate(p.date)+(p.note?' · '+esc(p.note):'')+'</div>'+
+        '<div style="font-size:9px;color:var(--accent);font-weight:700">'+rcNo+'</div></div></div>'+
+        '<div style="display:flex;align-items:center;gap:6px">'+
         '<div class="pay-amount">₹'+p.amount+'</div>'+
+        '<button class="btn-sm" style="background:#3b82f6;font-size:10px;padding:4px 7px" onclick="generateReceipt(DB.students.find(function(x){return x.id==='+s.id+';}),'+JSON.stringify(p)+',\''+rcNo+'\')">🧾</button>'+
         '<button class="btn-sm btn-red" onclick="delPay('+s.id+','+idx+');feeTab=\'history\'">✕</button>'+
         '</div></div>';
     }).join('');

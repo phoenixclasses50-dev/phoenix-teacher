@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Phoenix — Firebase Photo Compressor</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,sans-serif;background:#0a0d14;color:#f1f5f9;padding:20px;min-height:100vh;}
+h2{color:#f97316;margin-bottom:6px;font-size:18px;}
+p{color:#6b7280;font-size:12px;margin-bottom:20px;line-height:1.6;}
+.card{background:#111827;border:1px solid #1f2937;border-radius:14px;padding:16px;margin-bottom:14px;}
+.card-title{font-size:11px;font-weight:800;color:#f97316;text-transform:uppercase;margin-bottom:12px;}
+button{color:#fff;border:none;border-radius:10px;padding:11px 14px;font-size:13px;font-weight:700;cursor:pointer;width:100%;margin-top:8px;}
+.btn-blue{background:linear-gradient(135deg,#3b82f6,#2563eb);}
+.btn-green{background:linear-gradient(135deg,#22c55e,#16a34a);}
+.btn-orange{background:linear-gradient(135deg,#f97316,#ea580c);}
+.log{background:#0a0d14;border:1px solid #1f2937;border-radius:10px;padding:12px;font-size:11px;line-height:2;max-height:320px;overflow-y:auto;margin-top:10px;}
+.ok{color:#22c55e;} .warn{color:#eab308;} .err{color:#ef4444;} .info{color:#6b7280;}
+.photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px;}
+.photo-item{background:#0a0d14;border:1px solid #1f2937;border-radius:10px;padding:8px;text-align:center;}
+.photo-item img{width:100%;border-radius:6px;aspect-ratio:1;object-fit:cover;}
+.photo-item .name{font-size:10px;color:#6b7280;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.photo-item .size{font-size:10px;font-weight:700;}
+.size.big{color:#ef4444;} .size.ok{color:#22c55e;}
+progress{width:100%;height:8px;border-radius:4px;margin-top:8px;accent-color:#f97316;}
+</style>
+</head>
+<body>
+<div style="max-width:480px;margin:0 auto;">
+<h2>📸 Firebase Photo Compressor</h2>
+<p>Firebase मधील जुने मोठे photos compress करून परत save करतो.<br>Photo quality जवळजवळ तशीच राहते.</p>
+
+<div class="card">
+  <div class="card-title">Step 1 — Firebase मधून Photos Load करा</div>
+  <button class="btn-blue" onclick="loadPhotos()">☁️ Firebase मधून Load करा</button>
+  <progress id="prog" value="0" max="100" style="display:none"></progress>
+  <div class="log" id="log"><span class="info">Log येथे दिसेल...</span></div>
+</div>
+
+<div class="card" id="preview-card" style="display:none">
+  <div class="card-title">Photos Preview</div>
+  <div class="photo-grid" id="photo-grid"></div>
+</div>
+
+<div class="card" id="action-card" style="display:none">
+  <div class="card-title">Step 2 — Compress & Save</div>
+  <div id="summary" style="font-size:12px;color:#6b7280;margin-bottom:8px;"></div>
+  <button class="btn-green" onclick="compressAndSave()">✅ Compress करून Firebase ला Save करा</button>
+</div>
+</div>
+
+<script>
+var FB = 'https://phoenix-classes-5050-default-rtdb.asia-southeast1.firebasedatabase.app/phoenixClasses';
+var allPhotos = {}, allBRPhotos = {}, allStudents = [];
+
+function log(msg, type){
+  var d = document.getElementById('log');
+  d.innerHTML += '<div class="'+(type||'info')+'">'+msg+'</div>';
+  d.scrollTop = d.scrollHeight;
+}
+
+function sizeKB(dataUrl){ return Math.round(dataUrl.length * 0.75 / 1024); }
+
+function compressDataUrl(dataUrl, maxKB, maxW, cb){
+  var img = new Image();
+  img.onload = function(){
+    var canvas = document.createElement('canvas');
+    var w = img.width, h = img.height;
+    if(w > maxW){ h = Math.round(h * maxW / w); w = maxW; }
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    var q = 0.92, result = canvas.toDataURL('image/jpeg', q);
+    function loop(){
+      if(sizeKB(result) <= maxKB || q <= 0.55){ cb(result); return; }
+      q -= 0.06; result = canvas.toDataURL('image/jpeg', q); loop();
+    }
+    loop();
+  };
+  img.src = dataUrl;
+}
+
+async function loadPhotos(){
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('preview-card').style.display='none';
+  document.getElementById('action-card').style.display='none';
+  document.getElementById('prog').style.display='block';
+  document.getElementById('prog').value=10;
+  log('☁️ Firebase मधून data load करत आहे...','info');
+
+  try {
+    var r = await fetch(FB+'/main.json');
+    var main = await r.json();
+    document.getElementById('prog').value=40;
+
+    allStudents = (main && main.students) ? main.students : [];
+    log('✅ '+allStudents.length+' students मिळाले','ok');
+
+    var r2 = await fetch(FB+'/photos.json');
+    allPhotos = await r2.json() || {};
+    document.getElementById('prog').value=70;
+
+    var r3 = await fetch(FB+'/brPhotos.json');
+    allBRPhotos = await r3.json() || {};
+    document.getElementById('prog').value=100;
+
+    var pCount = Object.keys(allPhotos).length;
+    var brCount = Object.keys(allBRPhotos).length;
+    log('📸 Student photos: '+pCount,'info');
+    log('🏆 Board Result photos: '+brCount,'info');
+
+    // Preview
+    var grid = document.getElementById('photo-grid');
+    grid.innerHTML = '';
+    var bigCount = 0, totalOld = 0, shown = 0;
+
+    // Student photos
+    for(var id in allPhotos){
+      if(!allPhotos[id]) continue;
+      var kb = sizeKB(allPhotos[id]);
+      totalOld += kb;
+      var stu = allStudents.find(function(s){return String(s.id)===String(id);});
+      var name = stu ? stu.name : 'Student '+id;
+      if(kb > 400) bigCount++;
+      if(shown < 9){
+        grid.innerHTML += '<div class="photo-item"><img src="'+allPhotos[id]+'"/><div class="name">'+name+'</div><div class="size '+(kb>400?'big':'ok')+'">'+kb+'KB</div></div>';
+        shown++;
+      }
+    }
+
+    // BR photos
+    for(var i in allBRPhotos){
+      if(!allBRPhotos[i]) continue;
+      var kb = sizeKB(allBRPhotos[i]);
+      totalOld += kb;
+      if(kb > 400) bigCount++;
+      if(shown < 12){
+        grid.innerHTML += '<div class="photo-item"><img src="'+allBRPhotos[i]+'"/><div class="name">BR Photo '+(parseInt(i)+1)+'</div><div class="size '+(kb>400?'big':'ok')+'">'+kb+'KB</div></div>';
+        shown++;
+      }
+    }
+
+    document.getElementById('preview-card').style.display = shown > 0 ? 'block' : 'none';
+    document.getElementById('summary').textContent = 'एकूण: '+(pCount+brCount)+' photos | '+Math.round(totalOld/1024*10)/10+' MB | '+bigCount+' photos 400KB पेक्षा मोठे आहेत';
+    document.getElementById('action-card').style.display='block';
+
+    if(bigCount === 0) log('✅ सर्व photos आधीच 400KB च्या आत आहेत!','ok');
+    else log('⚠️ '+bigCount+' photos compress करायचे आहेत','warn');
+
+  } catch(e){
+    log('❌ Error: '+e.message,'err');
+  }
+  document.getElementById('prog').style.display='none';
+}
+
+async function compressAndSave(){
+  log('---','info');
+  log('🔄 Compress सुरू...','info');
+  var prog = document.getElementById('prog');
+  prog.style.display='block'; prog.value=0;
+
+  var newPhotos = {}, newBRPhotos = {};
+  var keys = Object.keys(allPhotos);
+  var brKeys = Object.keys(allBRPhotos);
+  var total = keys.length + brKeys.length;
+  var done = 0, saved = 0;
+
+  // Helper: compress one photo
+  function doOne(dataUrl, cb){
+    if(!dataUrl){ cb(null); return; }
+    var origKB = sizeKB(dataUrl);
+    if(origKB <= 400){ cb(dataUrl); return; } // Already small
+    compressDataUrl(dataUrl, 400, 800, function(compressed){
+      cb(compressed);
+    });
+  }
+
+  // Process student photos sequentially
+  async function processAll(){
+    for(var i=0;i<keys.length;i++){
+      var id = keys[i];
+      await new Promise(function(res){
+        doOne(allPhotos[id], function(result){
+          if(result){
+            var origKB = sizeKB(allPhotos[id]);
+            var newKB = sizeKB(result);
+            newPhotos[id] = result;
+            if(origKB > newKB+10){
+              log('✅ Student '+id+': '+origKB+'KB → '+newKB+'KB','ok');
+              saved++;
+            } else {
+              log('— Student '+id+': '+origKB+'KB (OK)','info');
+            }
+          }
+          done++; prog.value=Math.round(done/total*80); res();
+        });
+      });
+    }
+    for(var j=0;j<brKeys.length;j++){
+      var idx = brKeys[j];
+      await new Promise(function(res2){
+        doOne(allBRPhotos[idx], function(result2){
+          if(result2){
+            var origKB2 = sizeKB(allBRPhotos[idx]);
+            var newKB2 = sizeKB(result2);
+            newBRPhotos[idx] = result2;
+            if(origKB2 > newKB2+10){
+              log('✅ BR Photo '+(parseInt(idx)+1)+': '+origKB2+'KB → '+newKB2+'KB','ok');
+              saved++;
+            } else {
+              log('— BR Photo '+(parseInt(idx)+1)+': '+origKB2+'KB (OK)','info');
+            }
+          }
+          done++; prog.value=Math.round(done/total*80); res2();
+        });
+      });
+    }
+
+    log('☁️ Firebase ला save करत आहे...','info');
+    prog.value=85;
+
+    try {
+      await fetch(FB+'/photos.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(newPhotos)});
+      prog.value=92;
+      await fetch(FB+'/brPhotos.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(newBRPhotos)});
+      prog.value=100;
+      log('','info');
+      log('🎉 Done! '+saved+' photos compress झाले आणि Firebase ला save झाले!','ok');
+      log('आता app मध्ये "Firebase मधून Load करा" दाबा.','ok');
+    } catch(e){
+      log('❌ Save error: '+e.message,'err');
+    }
+    prog.style.display='none';
+  }
+
+  processAll();
+}
+</script>
+</body>
+</html>

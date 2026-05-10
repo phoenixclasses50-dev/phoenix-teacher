@@ -1762,86 +1762,127 @@ function generateReceipt(ps, payment, receiptNo){
     (fullyClear?'✅ *Fee Fully Cleared! 🎉*':'⚠️ बाकी रक्कम: ₹'+bal)+'\n'+
     '━━━━━━━━━━━━━━━━\n'+
     'धन्यवाद! 🔥 Phoenix Classes\n9503949009 / 9096815310';
-  var waUrl = waPhone ? 'https://wa.me/'+waPhone+'?text='+encodeURIComponent(waMsg) : '';
-  var w = window.open('','_blank','width=420,height=680');
+  var waTextUrl = waPhone ? 'https://wa.me/'+waPhone+'?text='+encodeURIComponent(waMsg) : '';
+  var pct = Math.min(100,Math.round((paid/Math.max(fee,1))*100));
+  var w = window.open('','_blank','width=440,height=760');
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/>'+
-  '<title>Fee Receipt — '+ps.name+'</title>'+
+  '<title>Fee Receipt \u2014 '+ps.name+'</title>'+
   '<meta name="viewport" content="width=device-width,initial-scale=1"/>'+
+  '<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>'+
   '<style>'+
   '*{box-sizing:border-box;margin:0;padding:0;}'+
-  'body{font-family:Arial,sans-serif;background:#f8fafc;padding:16px;}'+
-  '.receipt{background:#fff;border-radius:16px;padding:20px;max-width:380px;margin:0 auto;box-shadow:0 4px 24px #0001;}'+
-  '.header{text-align:center;border-bottom:2px dashed #f97316;padding-bottom:14px;margin-bottom:14px;}'+
-  '.logo{font-size:28px;margin-bottom:4px;}'+
-  '.school{font-size:18px;font-weight:800;color:#f97316;}'+
+  'body{font-family:Arial,sans-serif;background:#f1f5f9;padding:16px;}'+
+  '#rc{background:#fff;border-radius:16px;padding:20px;max-width:380px;margin:0 auto;box-shadow:0 4px 24px rgba(0,0,0,.08);}'+
+  '.hdr{text-align:center;border-bottom:2px dashed #f97316;padding-bottom:14px;margin-bottom:14px;}'+
+  '.school{font-size:19px;font-weight:800;color:#f97316;margin-bottom:2px;}'+
   '.sub{font-size:11px;color:#6b7280;}'+
-  '.rc-no{background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;color:#f97316;margin:10px 0;display:inline-block;}'+
+  '.rcno{background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:5px 14px;font-size:11px;font-weight:700;color:#ea580c;margin:10px auto 0;display:inline-block;}'+
   '.row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:13px;}'+
-  '.row:last-child{border-bottom:none;}'+
-  '.label{color:#6b7280;}'+
-  '.value{font-weight:700;color:#0f172a;}'+
-  '.amount-box{background:linear-gradient(135deg,#f97316,#ea580c);border-radius:12px;padding:14px;text-align:center;margin:14px 0;}'+
-  '.amount-box .amt{font-size:32px;font-weight:800;color:#fff;}'+
-  '.amount-box .lbl{font-size:11px;color:#fed7aa;margin-top:2px;}'+
-  '.balance-box{border-radius:10px;padding:10px;text-align:center;margin-bottom:14px;'+
+  '.lbl{color:#6b7280;}.val{font-weight:700;color:#0f172a;}'+
+  '.amtbox{background:linear-gradient(135deg,#f97316,#ea580c);border-radius:12px;padding:16px;text-align:center;margin:14px 0;}'+
+  '.amtbox .amt{font-size:34px;font-weight:800;color:#fff;letter-spacing:-1px;}'+
+  '.amtbox .albl{font-size:11px;color:#fed7aa;margin-top:3px;}'+
+  '.sumbox{background:#f8fafc;border-radius:10px;padding:10px 12px;margin-bottom:12px;}'+
+  '.sumrow{display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;}'+
+  '.pbar{background:#e2e8f0;border-radius:20px;height:8px;margin-top:4px;overflow:hidden;}'+
+  '.pfill{height:8px;border-radius:20px;background:linear-gradient(90deg,#f97316,#22c55e);}'+
+  '.balbox{border-radius:10px;padding:10px;text-align:center;margin-bottom:12px;'+
     (fullyClear?'background:#f0fdf4;border:2px solid #22c55e;':'background:#fef2f2;border:2px solid #ef4444;')+'}'+
-  '.balance-box .bal{font-size:18px;font-weight:800;color:'+(fullyClear?'#22c55e':'#ef4444')+'}'+
-  '.balance-box .bll{font-size:11px;color:'+(fullyClear?'#16a34a':'#dc2626')+';margin-top:2px;}'+
-  '.summary{background:#f8fafc;border-radius:10px;padding:10px;margin-bottom:14px;}'+
-  '.progress-bar{background:#e2e8f0;border-radius:20px;height:8px;margin-top:6px;}'+
-  '.progress-fill{background:linear-gradient(90deg,#f97316,#22c55e);border-radius:20px;height:8px;}'+
-  '.footer{text-align:center;font-size:10px;color:#94a3b8;border-top:1px dashed #e2e8f0;padding-top:12px;margin-top:4px;}'+
-  '.stamp{display:inline-block;border:2px solid #22c55e;border-radius:8px;padding:4px 12px;color:#22c55e;font-weight:800;font-size:13px;margin:8px 0;transform:rotate(-2deg);}'+
-  '.btn-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}'+
-  'button{flex:1;min-width:80px;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;}'+
-  '.btn-print{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;}'+
-  '.btn-wa{background:#25d366;color:#fff;}'+
-  '.btn-close{background:#f1f5f9;color:#374151;}'+
-  '@media print{.btn-row{display:none!important;}body{background:#fff;padding:0;}'+
-  '.receipt{box-shadow:none;border-radius:0;}}'+
+  '.balamt{font-size:19px;font-weight:800;color:'+(fullyClear?'#22c55e':'#ef4444')+';}'+
+  '.ballbl{font-size:11px;color:'+(fullyClear?'#16a34a':'#dc2626')+';margin-top:2px;}'+
+  '.stamp{display:inline-block;border:2px solid #22c55e;border-radius:8px;padding:3px 12px;color:#22c55e;font-weight:800;font-size:13px;margin-bottom:6px;transform:rotate(-2deg);}'+
+  '.footer{text-align:center;font-size:10px;color:#94a3b8;border-top:1px dashed #e2e8f0;padding-top:10px;margin-top:6px;line-height:1.6;}'+
+  '.btnrow{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}'+
+  'button{flex:1;min-width:80px;padding:10px 6px;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:Arial,sans-serif;}'+
+  '.bprint{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;}'+
+  '.bimg{background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;}'+
+  '.bwa{background:#25d366;color:#fff;}'+
+  '.bclose{background:#e2e8f0;color:#374151;}'+
+  '#status{text-align:center;font-size:12px;color:#f97316;font-weight:700;margin-top:10px;min-height:18px;}'+
+  '@media print{.btnrow,#status{display:none!important;}body{background:#fff;padding:0;}#rc{box-shadow:none;border-radius:0;}}'+
   '</style></head><body>'+
-  '<div class="receipt">'+
-    '<div class="header">'+
-      '<div class="logo">🔥</div>'+
+  '<div id="rc">'+
+    '<div class="hdr">'+
+      '<div style="font-size:30px;margin-bottom:4px">\uD83D\uDD25</div>'+
       '<div class="school">Phoenix Classes</div>'+
-      '<div class="sub">बहे-वाळवा · 9503949009 / 9096815310</div>'+
-      '<div class="rc-no">Receipt No: '+rcNo+'</div>'+
+      '<div class="sub">\u092C\u0939\u0947-\u0935\u093E\u0933\u0935\u093E \u00B7 9503949009 / 9096815310</div>'+
+      '<div class="rcno">Receipt No: '+rcNo+'</div>'+
     '</div>'+
-    '<div class="row"><span class="label">विद्यार्थी</span><span class="value">'+ps.name+'</span></div>'+
-    '<div class="row"><span class="label">वर्ग</span><span class="value">'+ps.cls+'</span></div>'+
-    '<div class="row"><span class="label">माध्यम</span><span class="value">'+(ps.cls.indexOf('Semi-English')>=0?'Semi-English (इंग्रजी)':ps.cls.indexOf('Marathi')>=0?'Marathi (मराठी)':'-')+'</span></div>'+
-    '<div class="row"><span class="label">Subject</span><span class="value">'+ps.subject+'</span></div>'+
-    '<div class="row"><span class="label">दिनांक</span><span class="value">'+fmtDate(payment.date)+'</span></div>'+
-    (payment.note?'<div class="row"><span class="label">तपशील</span><span class="value">'+payment.note+'</span></div>':'')+
-    '<div class="amount-box">'+
-      '<div class="amt">₹'+payment.amount+'</div>'+
-      '<div class="lbl">भरलेली रक्कम (This Payment)</div>'+
+    '<div class="row"><span class="lbl">\u0935\u093F\u0926\u094D\u092F\u093E\u0930\u094D\u0925\u0940</span><span class="val">'+ps.name+'</span></div>'+
+    '<div class="row"><span class="lbl">\u0935\u0930\u094D\u0917</span><span class="val">'+ps.cls+'</span></div>'+
+    '<div class="row"><span class="lbl">\u092E\u093E\u0927\u094D\u092F\u092E</span><span class="val">'+(ps.cls.indexOf('Semi-English')>=0?'Semi-English (\u0907\u0902\u0917\u094D\u0930\u091C\u0940)':'Marathi (\u092E\u0930\u093E\u0920\u0940)')+'</span></div>'+
+    '<div class="row"><span class="lbl">Subject</span><span class="val">'+ps.subject+'</span></div>'+
+    '<div class="row"><span class="lbl">\u0926\u093F\u0928\u093E\u0902\u0915</span><span class="val">'+fmtDate(payment.date)+'</span></div>'+
+    (payment.note?'<div class="row"><span class="lbl">\u0924\u092A\u0936\u0940\u0932</span><span class="val">'+payment.note+'</span></div>':'')+
+    '<div class="amtbox"><div class="amt">\u20B9'+payment.amount+'</div><div class="albl">\u092D\u0930\u0932\u0947\u0932\u0940 \u0930\u0915\u094D\u0915\u092E (This Payment)</div></div>'+
+    '<div class="sumbox">'+
+      '<div class="sumrow"><span style="color:#6b7280">\u090F\u0915\u0942\u0923 \u092B\u0940</span><span style="font-weight:700">\u20B9'+fee+'</span></div>'+
+      '<div class="sumrow"><span style="color:#6b7280">\u0906\u0924\u093E\u092A\u0930\u094D\u092F\u0902\u0924 \u092D\u0930\u0932\u0947\u0932\u0940</span><span style="font-weight:700;color:#f97316">\u20B9'+paid+'</span></div>'+
+      '<div class="pbar"><div class="pfill" style="width:'+pct+'%"></div></div>'+
+      '<div style="text-align:right;font-size:10px;color:#94a3b8;margin-top:3px">'+pct+'% paid</div>'+
     '</div>'+
-    '<div class="summary">'+
-      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">'+
-        '<span style="color:#6b7280">एकूण फी</span><span style="font-weight:700">₹'+fee+'</span></div>'+
-      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">'+
-        '<span style="color:#6b7280">आतापर्यंत भरलेली</span><span style="font-weight:700;color:#f97316">₹'+paid+'</span></div>'+
-      '<div class="progress-bar"><div class="progress-fill" style="width:'+Math.min(100,Math.round((paid/Math.max(fee,1))*100))+'%"></div></div>'+
-      '<div style="text-align:right;font-size:10px;color:#94a3b8;margin-top:3px">'+Math.min(100,Math.round((paid/Math.max(fee,1))*100))+'% paid</div>'+
-    '</div>'+
-    '<div class="balance-box">'+
+    '<div class="balbox">'+
       (fullyClear?
-        '<div class="stamp">✅ Fee Fully Cleared!</div>'+
-        '<div class="bal">₹0</div><div class="bll">कोणतीही बाकी नाही 🎉</div>':
-        '<div class="bal">₹'+bal+' बाकी</div><div class="bll">Remaining Balance</div>'
+        '<div class="stamp">\u2705 Fee Fully Cleared!</div><br>'+
+        '<div class="balamt">\u20B90</div><div class="ballbl">\u0915\u094B\u0923\u0924\u0940\u0939\u0940 \u092C\u093E\u0915\u0940 \u0928\u093E\u0939\u0940 \uD83C\uDF89</div>':
+        '<div class="balamt">\u20B9'+bal+' \u092C\u093E\u0915\u0940</div><div class="ballbl">Remaining Balance</div>'
       )+
     '</div>'+
-    '<div class="footer">'+
-      'हे अधिकृत फी पावती आहे. · Phoenix Classes<br/>'+
-      'Generated: '+new Date().toLocaleString('mr-IN')+
-    '</div>'+
-    '<div class="btn-row">'+
-      '<button class="btn-print" onclick="window.print()">🖨️ Print</button>'+
-      (waUrl?'<button class="btn-wa" onclick="window.open(\''+waUrl+'\',\'_blank\')">📲 WhatsApp</button>':'')+
-      '<button class="btn-close" onclick="window.close()">✕ Close</button>'+
-    '</div>'+
+    '<div class="footer">\u0939\u0947 \u0905\u0927\u093F\u0915\u0943\u0924 \u092B\u0940 \u092A\u093E\u0935\u0924\u0940 \u0906\u0939\u0947. \u00B7 Phoenix Classes<br/>Generated: '+new Date().toLocaleString('mr-IN')+'</div>'+
   '</div>'+
+  '<div class="btnrow">'+
+    '<button class="bprint" onclick="window.print()">\uD83D\uDDB8\uFE0F Print</button>'+
+    '<button class="bimg" onclick="saveImg()">\uD83D\uDCF8 Save Image</button>'+
+    (waTextUrl?'<button class="bwa" id="bwa" onclick="shareWA()">\uD83D\uDCF2 WhatsApp</button>':'')+
+    '<button class="bclose" onclick="window.close()">\u2715 Close</button>'+
+  '</div>'+
+  '<div id="status"></div>'+
+  '<script>'+
+  'var waTextUrl='+JSON.stringify(waTextUrl)+';'+
+  'var rcFileName="Receipt_'+ps.name.replace(/\s+/g,'_')+'_'+rcNo+'.png";'+
+  'function getCanvas(cb){'+
+    'var el=document.getElementById("rc");'+
+    'html2canvas(el,{scale:2,useCORS:true,backgroundColor:"#ffffff",logging:false}).then(cb);'+
+  '}'+
+  'function saveImg(){'+
+    'var s=document.getElementById("status");'+
+    's.textContent="\u23F3 Image तयार होत आहे...";'+
+    'getCanvas(function(canvas){'+
+      'var a=document.createElement("a");'+
+      'a.href=canvas.toDataURL("image/png");'+
+      'a.download=rcFileName;'+
+      'a.click();'+
+      's.textContent="\u2705 Image download झाली! आता WhatsApp वर share करा.";'+
+      'setTimeout(function(){s.textContent="";},4000);'+
+    '});'+
+  '}'+
+  'function shareWA(){'+
+    'var s=document.getElementById("status");'+
+    'if(navigator.share){'+
+      's.textContent="\u23F3 Image तयार होत आहे...";'+
+      'getCanvas(function(canvas){'+
+        'canvas.toBlob(function(blob){'+
+          'var file=new File([blob],rcFileName,{type:"image/png"});'+
+          'if(navigator.canShare&&navigator.canShare({files:[file]})){'+
+            'navigator.share({files:[file],title:"Fee Receipt - '+ps.name+'",text:"Phoenix Classes Fee Receipt"})'+
+            '.then(function(){s.textContent="\u2705 Shared!";setTimeout(function(){s.textContent="";},3000);})'+
+            '.catch(function(e){if(e.name!=="AbortError"){s.textContent="Share cancel झाला.";setTimeout(function(){s.textContent="";},3000);}else{s.textContent="";}});'+
+          '}else{'+
+            'var a=document.createElement("a");a.href=canvas.toDataURL("image/png");a.download=rcFileName;a.click();'+
+            's.textContent="\u2B07\uFE0F Image download झाली. WhatsApp उघडत आहे...";'+
+            'setTimeout(function(){window.open(waTextUrl,"_blank");s.textContent="";},1500);'+
+          '}'+
+        '});'+
+      '});'+
+    '}else{'+
+      's.textContent="\u23F3 Image download होत आहे, नंतर WhatsApp उघडेल...";'+
+      'getCanvas(function(canvas){'+
+        'var a=document.createElement("a");a.href=canvas.toDataURL("image/png");a.download=rcFileName;a.click();'+
+        'setTimeout(function(){window.open(waTextUrl,"_blank");s.textContent="";},1800);'+
+      '});'+
+    '}'+
+  '}'+
+  '<\/script>'+
   '</body></html>');
   w.document.close();
   return { fee, paid, bal, fullyClear, rcNo };

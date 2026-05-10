@@ -1845,6 +1845,7 @@ function generateReceipt(ps, payment, receiptNo){
   '</body></html>');
   w.document.close();
   return { fee, paid, bal, fullyClear, rcNo };
+}
 
 function savePay(){
   var amt=document.getElementById('pay-amt');

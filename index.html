@@ -198,7 +198,7 @@ td{padding:9px 7px;border-bottom:1px solid var(--border);vertical-align:middle;}
       <label>Password</label>
       <input type="password" id="admin-pass" placeholder="Enter password" onkeydown="if(event.key==='Enter')doAdminLogin()"/>
     </div>
-    <button class="login-btn" onclick="doAdminLogin()">Login →</button>
+    <button class="login-btn" id="login-btn" onclick="doAdminLogin()">Login →</button>
     <div class="login-err" id="login-err">❌ Incorrect password. Try again.</div>
     <div class="login-hint">Phoenix Classes · Bahe, Walwa, Dist-Sangli<br>Contact admin if you forgot your password</div>
   </div>
@@ -242,6 +242,48 @@ function showSyncBar(msg, isErr) {
 
 // ── FIREBASE API ────────────────────────────────────────────────
 var API_URL='https://script.google.com/macros/s/AKfycbwZA0AVGXn-DZikhmTTlv6uDhAvrbobyAKP6e1UYor2f6YYTSmUr-5U_eQ0L813h77U/exec';
+
+// ── LAST SYNC TRACKER ──────────────────────────────────────────
+var _lastSyncTime = null;
+function setLastSync(){ _lastSyncTime = Date.now(); try{localStorage.setItem('pxLastSync', _lastSyncTime);}catch(e){} }
+function getLastSyncText(){
+  var t = _lastSyncTime || parseInt(localStorage.getItem('pxLastSync')||'0');
+  if(!t) return 'कधीच sync नाही';
+  var diff = Math.floor((Date.now()-t)/1000);
+  if(diff<60) return diff+' seconds ago';
+  if(diff<3600) return Math.floor(diff/60)+' min ago';
+  if(diff<86400) return Math.floor(diff/3600)+' hrs ago';
+  return Math.floor(diff/86400)+' days ago';
+}
+
+// ── NETWORK CHECK ──────────────────────────────────────────────
+function isOnline(){ return navigator.onLine; }
+window.addEventListener('online',  function(){ showSyncBar('✅ Internet परत आले!', false); });
+window.addEventListener('offline', function(){ showSyncBar('⚠️ Internet नाही — changes locally saved आहेत.', true); });
+
+// ── SAFE WRAPPERS ──────────────────────────────────────────────
+function safeSync(){
+  if(!isOnline()){ toast('Internet नाही! आधी connection check करा.',true); return; }
+  if(!confirm('Firebase वर Sync करायचे?\n\nLocal data → Firebase वर जाईल.\n\nConfirm करा.')) return;
+  syncToSheets();
+}
+function safeLoad(){
+  if(!isOnline()){ toast('Internet नाही! आधी connection check करा.',true); return; }
+  var localCount = DB.students ? DB.students.length : 0;
+  var msg = 'Firebase मधून Load करायचे?\n\n';
+  if(localCount > 0){
+    msg += '⚠️ Warning: Local मध्ये '+localCount+' students आहेत.\nFirebase चा data त्यावर येईल.\n\nLocal backup आधी काढून घ्या!\n\nConfirm करा?';
+  } else {
+    msg += 'Firebase मधील data local मध्ये load होईल.\n\nConfirm करा?';
+  }
+  if(!confirm(msg)) return;
+  loadFromSheets();
+}
+function safeClearAll(){
+  if(!confirm('⚠️ सर्व data delete होईल!\n\nआधी "Download Local Backup" करा.\n\nProceed करायचे?')) return;
+  if(!confirm('🔴 FINAL CONFIRM\n\nसर्व students, attendance, fees, marks delete होतील.\n\nHe undone होणार नाही!')) return;
+  clearAll();
+}
 
 function syncToSheets(){
   window._blockSync=false;
@@ -301,7 +343,7 @@ function syncToSheets(){
     }).then(function(r){
       window._syncingToSheets=false;
       clearTimeout(window._syncLockTimer);
-      if(r&&r.ok){showSyncBar('✅ Firebase मध्ये save झाले!',false);}
+      if(r&&r.ok){setLastSync();showSyncBar('✅ Firebase मध्ये save झाले!',false);render();}
       else{showSyncBar('⚠️ BR Photos save failed',true);}
     }).catch(function(err){
       if(err==='main'||err==='photos')return;
@@ -519,11 +561,50 @@ function toast(msg,err){
 }
 var photoUploadId=null;
 function triggerPhoto(id){photoUploadId=id;document.getElementById('photoFile').click();}
+
+// ── SMART PHOTO COMPRESS ──────────────────────────────────────
+// Quality न बिघडवता 500KB च्या आत compress करतो
+function compressPhoto(file, maxSizeKB, maxWidth, callback){
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var img = new Image();
+    img.onload = function(){
+      var canvas = document.createElement('canvas');
+      var w = img.width, h = img.height;
+      // Max width resize (aspect ratio maintain)
+      if(w > maxWidth){ h = Math.round(h * maxWidth / w); w = maxWidth; }
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      // Quality iterate करत compress करतो — 0.92 पासून 0.60 पर्यंत
+      var quality = 0.92;
+      var result = canvas.toDataURL('image/jpeg', quality);
+      function tryCompress(){
+        var sizeKB = Math.round(result.length * 0.75 / 1024);
+        if(sizeKB <= maxSizeKB || quality <= 0.60){
+          callback(result, sizeKB);
+        } else {
+          quality -= 0.06;
+          result = canvas.toDataURL('image/jpeg', quality);
+          tryCompress();
+        }
+      }
+      tryCompress();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function uploadPhoto(inp){
   var file=inp.files[0];if(!file||!photoUploadId)return;
-  var r=new FileReader();
-  r.onload=function(ev){DB.photos[photoUploadId]=ev.target.result;dbSWithSync();render();toast('Photo updated!',false);};
-  r.readAsDataURL(file);inp.value='';
+  toast('📸 Photo compress करत आहे...',false);
+  compressPhoto(file, 400, 800, function(data, sizeKB){
+    DB.photos[photoUploadId]=data;
+    dbSWithSync();render();
+    toast('✅ Photo updated! ('+sizeKB+'KB)',false);
+  });
+  inp.value='';
 }
 function photoEl(id,name){
   var src=DB.photos[id];
@@ -793,19 +874,63 @@ function pgHome(){
 // ── STUDENTS ──────────────────────────────────────────────────────
 function pgStu(){
   if(selStu!==null)return pgReport(selStu);
-  var fl=DB.students.filter(function(s){return(sF==='All'||s.cls===sF||s.cls.indexOf(sF)>=0)&&s.name.toLowerCase().indexOf(sSr.toLowerCase())>=0;});
-  var rows=fl.length===0?'<tr><td colspan="5" class="empty">No students found.</td></tr>':
+
+  // ── SMART SEARCH ─────────────────────────────────────────────
+  var q = sSr.trim().toLowerCase();
+  var fl = DB.students.filter(function(s){
+    if(sF !== 'All' && s.cls !== sF && s.cls.indexOf(sF) < 0) return false;
+    if(!q) return true;
+    // Name
+    if(s.name.toLowerCase().indexOf(q) >= 0) return true;
+    // Phone
+    if(s.phone && String(s.phone).indexOf(q) >= 0) return true;
+    // Class
+    if(s.cls && s.cls.toLowerCase().indexOf(q) >= 0) return true;
+    // Subject
+    if(s.subject && s.subject.toLowerCase().indexOf(q) >= 0) return true;
+    // Fee status keywords
+    var paid = getTotalPaid(s.id), fee = getYearlyFee(s.cls, s.subject, s.id), bal = fee - paid;
+    if(q === 'due' || q === 'pending') return bal > 0;
+    if(q === 'paid' || q === 'clear') return fee > 0 && bal <= 0;
+    // Batch type
+    if(s.batchType && s.batchType.toLowerCase().indexOf(q) >= 0) return true;
+    // Birthday month (e.g. "jan", "feb")
+    if(s.birthdate){
+      var months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+      var bm = new Date(s.birthdate).getMonth();
+      if(months[bm] && months[bm].indexOf(q) >= 0) return true;
+    }
+    return false;
+  });
+
+  // Search hint
+  var searchHint = '';
+  if(q){
+    searchHint = '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;padding:6px 10px;background:var(--bg);border-radius:8px">'+
+      '🔍 "<b style="color:var(--accent)">'+esc(sSr)+'</b>" — <b style="color:var(--text)">'+fl.length+'</b> results'+
+      (sSr !== '' ? ' &nbsp;·&nbsp; <span style="color:var(--accent);cursor:pointer;font-weight:700" onclick="sSr=\'\';render()">✕ Clear</span>' : '')+
+      '</div>';
+  }
+
+  var rows=fl.length===0?'<tr><td colspan="5" class="empty">'+(q?'🔍 "'+esc(sSr)+'" साठी काहीच मिळाले नाही.':'No students found.')+'</td></tr>':
     fl.map(function(s,i){
       var paid=getTotalPaid(s.id),fee=getYearlyFee(s.cls,s.subject,s.id),bal=fee-paid;
       var badges=getBadges(s.id,s.cls);
+      // Highlight matching text in name
+      var nameHtml = esc(s.name);
+      if(q && s.name.toLowerCase().indexOf(q) >= 0){
+        var idx = s.name.toLowerCase().indexOf(q);
+        nameHtml = esc(s.name.slice(0,idx))+'<mark style="background:#f9731640;color:var(--accent);border-radius:3px;padding:0 2px">'+esc(s.name.slice(idx,idx+q.length))+'</mark>'+esc(s.name.slice(idx+q.length));
+      }
       return '<tr>'+
         '<td>'+photoEl(s.id,s.name)+'</td>'+
-        '<td style="font-weight:700;cursor:pointer;color:var(--accent)" onclick="selStu='+s.id+';render()">'+esc(s.name)+'<br><span style="font-size:10px;color:var(--muted)">'+s.cls+'</span>'+(s.batchType==='Vacation'?'<br><span style="background:#7c3aed22;color:#8b5cf6;border:1px solid #8b5cf644;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">🏖️ Vacation</span>':'')+badgeHtml(badges)+'</td>'+
+        '<td style="font-weight:700;cursor:pointer;color:var(--accent)" onclick="selStu='+s.id+';render()">'+nameHtml+'<br><span style="font-size:10px;color:var(--muted)">'+s.cls+'</span>'+(s.batchType==='Vacation'?'<br><span style="background:#7c3aed22;color:#8b5cf6;border:1px solid #8b5cf644;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">🏖️ Vacation</span>':'')+badgeHtml(badges)+'</td>'+
         '<td>'+bdg(s.subject,'#3b82f6')+'</td>'+
         '<td>'+(fee>0&&bal<=0?bdg('Full Paid','#22c55e'):fee===0?bdg('Fee Not Set','#94a3b8'):bdg('₹'+bal+' Due','#ef4444'))+'</td>'+
         '<td style="display:flex;gap:4px"><button class="btn-sm" style="background:#3b82f6" onclick="openEditStu('+s.id+')">✏️</button><button class="btn-sm btn-red" onclick="dStu('+s.id+')">✕</button></td>'+
         '</tr>';
     }).join('');
+
   return topbar('Students')+
     '<div class="grid3">'+sc(DB.students.length,'Total','#f97316')+sc(DB.students.filter(function(s){return s.cls.indexOf('Class 8')>=0;}).length,'Class 8','#3b82f6')+sc(DB.students.filter(function(s){return s.cls.indexOf('Class 9')>=0;}).length,'Class 9','#22c55e')+sc(DB.students.filter(function(s){return s.cls.indexOf('Class 10')>=0;}).length,'Class 10','#8b5cf6')+'</div>'+
     '<div class="card"><div class="card-title">➕ Add New Student</div>'+
@@ -820,9 +945,13 @@ function pgStu(){
     '<div id="vacfee-row" style="display:none"><label>Custom Fee (₹)</label><input id="scustomfee" type="number" placeholder="e.g. 800"/></div></div>'+
     '<button class="btn btn-orange" onclick="aStu()">➕ Add Student</button></div>'+
     '<div class="mb">'+cps(['All'].concat(CL_FULL),sF,'setSF')+'</div>'+
-    '<div class="mb"><input placeholder="🔍 Search..." oninput="sSr=this.value;render()" value="'+esc(sSr)+'"/></div>'+
-    '<div class="card"><div class="card-title">All Students — Tap name for Details</div>'+
-    '<table><thead><tr><th></th><th>Name</th><th>Subject</th><th>Fee</th><th>Del</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    '<div class="mb" style="position:relative">'+
+      '<input placeholder="🔍 Search — name, phone, class, \'due\', \'paid\', \'vacation\'..." oninput="sSr=this.value;render()" value="'+esc(sSr)+'" style="padding-right:36px"/>'+
+      (sSr ? '<span onclick="sSr=\'\';render()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:16px;cursor:pointer;color:var(--muted)">✕</span>' : '')+
+    '</div>'+
+    searchHint+
+    '<div class="card"><div class="card-title">Students — '+fl.length+(q?' found':' total')+' — Tap name for Details</div>'+
+    '<table><thead><tr><th></th><th>Name</th><th>Subject</th><th>Fee</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
 function openEditStu(id){
   var s=null;for(var i=0;i<DB.students.length;i++){if(DB.students[i].id===id){s=DB.students[i];break;}}
@@ -1216,8 +1345,20 @@ function pgHW(){
 }
 
 
+// ── MARKS ANALYTICS STATE ────────────────────────────────────
+var mrkTab = 'entry'; // 'entry' | 'analytics'
+var anlCls = 'Class 8 Semi-English';
+
 function pgMrk(){
   var tests=DB.marks.tests||[],md=DB.marks.data||{};
+
+  var tabBtns = '<div style="display:flex;gap:8px;margin-bottom:14px">'+
+    '<button class="btn '+(mrkTab==='entry'?'btn-orange':'btn-gray')+'" style="margin-top:0;flex:1;padding:9px" onclick="mrkTab=\'entry\';render()">📝 Entry</button>'+
+    '<button class="btn '+(mrkTab==='analytics'?'btn-orange':'btn-gray')+'" style="margin-top:0;flex:1;padding:9px" onclick="mrkTab=\'analytics\';render()">📊 Analytics</button>'+
+    '</div>';
+
+  if(mrkTab==='analytics') return topbar('Marks & Results')+tabBtns+pgMrkAnalytics();
+
   var tlist=tests.length===0?'<div class="empty">No tests yet.</div>':
     tests.map(function(t){
       var sl=DB.students.filter(function(s){return s.cls===t.cls&&(s.subject===t.subject||s.subject==='Both'||t.subject==='Both');});
@@ -1259,7 +1400,7 @@ function pgMrk(){
       '<div style="overflow-x:auto"><table><thead><tr><th></th><th>Student</th><th>Marks/'+stObj.maxMarks+'</th><th>Absent?</th><th>Grade</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
       (ts.length>0?'<button class="btn btn-green" onclick="saveMrk()">💾 Save Marks</button>':'');
   }
-  return topbar('Marks & Results')+
+  return topbar('Marks & Results')+tabBtns+
     '<div class="card"><div class="card-title">➕ New Test</div>'+
     '<div class="mb"><label>Test Name</label><input id="tn" placeholder="e.g. Unit Test 1"/></div>'+
     '<div class="grid2 mb">'+
@@ -1271,6 +1412,230 @@ function pgMrk(){
     '<div class="card"><div class="card-title">📝 All Tests</div>'+tlist+'</div>'+
     '<div class="card">'+mp+'</div>';
 }
+
+function pgMrkAnalytics(){
+  var tests=DB.marks.tests||[],md=DB.marks.data||{};
+  var clsTests=tests.filter(function(t){return t.cls===anlCls;});
+  var clsStudents=DB.students.filter(function(s){return s.cls===anlCls;});
+
+  if(!clsTests.length) return '<div class="card"><div class="card-title">📊 Analytics</div>'+
+    '<div class="mb">'+cps(CL_FULL,anlCls,'setAnlCls')+'</div>'+
+    '<div class="empty">या class साठी अजून कोणताही test नाही.</div></div>';
+
+  // ── Class Summary Stats ───────────────────────────────────────
+  var allAvgs = clsStudents.map(function(s){
+    var tv=clsTests.filter(function(t){return s.subject===t.subject||s.subject==='Both'||t.subject==='Both';});
+    var tot=0,obt=0;
+    tv.forEach(function(t){var v=Number((md[t.id]||{})[s.id]||0);if(v){tot+=t.maxMarks;obt+=v;}});
+    return tot>0?Math.round((obt/tot)*100):null;
+  }).filter(function(v){return v!==null;});
+  var classAvg = allAvgs.length ? Math.round(allAvgs.reduce(function(a,b){return a+b;},0)/allAvgs.length) : 0;
+  var highest = allAvgs.length ? Math.max.apply(null,allAvgs) : 0;
+  var lowest  = allAvgs.length ? Math.min.apply(null,allAvgs) : 0;
+  var passCount = allAvgs.filter(function(v){return v>=40;}).length;
+  var passRate = allAvgs.length ? Math.round((passCount/allAvgs.length)*100) : 0;
+  var aCount = allAvgs.filter(function(v){return v>=75;}).length;
+  var sorted = allAvgs.slice().sort(function(a,b){return a-b;});
+  var median = sorted.length ? sorted[Math.floor(sorted.length/2)] : 0;
+
+  var summaryCards =
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">'+
+    '<div style="background:var(--card);border:1px solid var(--border);border-top:3px solid #3b82f6;border-radius:12px;padding:10px;text-align:center">'+
+      '<div style="font-size:22px;font-weight:800;color:#3b82f6">'+classAvg+'%</div><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">Class Avg</div></div>'+
+    '<div style="background:var(--card);border:1px solid var(--border);border-top:3px solid #22c55e;border-radius:12px;padding:10px;text-align:center">'+
+      '<div style="font-size:22px;font-weight:800;color:#22c55e">'+highest+'%</div><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">Highest</div></div>'+
+    '<div style="background:var(--card);border:1px solid var(--border);border-top:3px solid #ef4444;border-radius:12px;padding:10px;text-align:center">'+
+      '<div style="font-size:22px;font-weight:800;color:#ef4444">'+lowest+'%</div><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">Lowest</div></div>'+
+    '<div style="background:var(--card);border:1px solid var(--border);border-top:3px solid #22c55e;border-radius:12px;padding:10px;text-align:center">'+
+      '<div style="font-size:22px;font-weight:800;color:#22c55e">'+passRate+'%</div><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">Pass Rate</div></div>'+
+    '<div style="background:var(--card);border:1px solid var(--border);border-top:3px solid #eab308;border-radius:12px;padding:10px;text-align:center">'+
+      '<div style="font-size:22px;font-weight:800;color:#eab308">'+median+'%</div><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">Median</div></div>'+
+    '<div style="background:var(--card);border:1px solid var(--border);border-top:3px solid #f97316;border-radius:12px;padding:10px;text-align:center">'+
+      '<div style="font-size:22px;font-weight:800;color:#f97316">'+aCount+'</div><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase">Grade A</div></div>'+
+    '</div>';
+
+  // ── Class Average Trend (bar chart per test) ──────────────────
+  var maxBar = 80;
+  var trendBars = clsTests.map(function(t){
+    var sl=clsStudents.filter(function(s){return s.subject===t.subject||s.subject==='Both'||t.subject==='Both';});
+    var vals=sl.map(function(s){return Number((md[t.id]||{})[s.id]||0);}).filter(function(v){return v>0;});
+    var avg=vals.length?(vals.reduce(function(a,b){return a+b;},0)/vals.length):0;
+    var pct=t.maxMarks>0?Math.round((avg/t.maxMarks)*100):0;
+    var h=Math.max(Math.round((pct/100)*maxBar),3);
+    var col=pct>=75?'#22c55e':pct>=60?'#3b82f6':pct>=40?'#eab308':'#ef4444';
+    var short=t.testName.length>7?t.testName.slice(0,7)+'…':t.testName;
+    return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">'+
+      '<div style="font-size:9px;font-weight:700;color:'+col+'">'+pct+'%</div>'+
+      '<div style="width:100%;background:var(--border);border-radius:4px 4px 0 0;height:'+maxBar+'px;display:flex;align-items:flex-end">'+
+      '<div style="width:100%;height:'+h+'px;background:'+col+';border-radius:4px 4px 0 0"></div></div>'+
+      '<div style="font-size:8px;color:var(--muted);text-align:center;max-width:44px;word-break:break-word;line-height:1.2">'+esc(short)+'</div>'+
+      '</div>';
+  }).join('');
+
+  // ── Subject Comparison (Maths vs Science) ─────────────────────
+  var mathTests  = clsTests.filter(function(t){return t.subject==='Maths'||t.subject==='Both';});
+  var sciTests   = clsTests.filter(function(t){return t.subject==='Science'||t.subject==='Both';});
+  function subjectAvg(subTests, subName){
+    var tot=0,obt=0,cnt=0;
+    subTests.forEach(function(t){
+      clsStudents.forEach(function(s){
+        if(s.subject===subName||s.subject==='Both'){
+          var v=Number((md[t.id]||{})[s.id]||0);
+          if(v){tot+=t.maxMarks;obt+=v;cnt++;}
+        }
+      });
+    });
+    return tot>0?Math.round((obt/tot)*100):0;
+  }
+  var mathAvg=subjectAvg(mathTests,'Maths');
+  var sciAvg=subjectAvg(sciTests,'Science');
+  var subjectComp = (mathTests.length&&sciTests.length)?
+    '<div class="card">'+
+    '<div class="card-title">⚖️ Subject Comparison</div>'+
+    '<div style="margin-bottom:10px">'+
+      '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:4px">'+
+        '<span style="color:#3b82f6">📐 Maths</span><span style="color:#3b82f6">'+mathAvg+'%</span></div>'+
+      '<div style="background:var(--border);border-radius:20px;height:12px">'+
+        '<div style="width:'+mathAvg+'%;background:#3b82f6;border-radius:20px;height:12px"></div></div>'+
+    '</div>'+
+    '<div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:4px">'+
+        '<span style="color:#22c55e">🔬 Science</span><span style="color:#22c55e">'+sciAvg+'%</span></div>'+
+      '<div style="background:var(--border);border-radius:20px;height:12px">'+
+        '<div style="width:'+sciAvg+'%;background:#22c55e;border-radius:20px;height:12px"></div></div>'+
+    '</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center">'+
+      (mathAvg>sciAvg?'📐 Maths class average जास्त आहे':sciAvg>mathAvg?'🔬 Science class average जास्त आहे':'📐🔬 दोन्ही समान आहे')+
+    '</div></div>' : '';
+
+  // ── Grade Distribution (latest test) ─────────────────────────
+  var lastTest=clsTests[clsTests.length-1];
+  var lastSl=clsStudents.filter(function(s){return s.subject===lastTest.subject||s.subject==='Both'||lastTest.subject==='Both';});
+  var grades={A:0,B:0,C:0,D:0,Absent:0};
+  lastSl.forEach(function(s){
+    var v=(md[lastTest.id]||{})[s.id];
+    if(v==='AB'){grades.Absent++;return;}
+    var n=Number(v||0);if(!n){grades.Absent++;return;}
+    var pct=Math.round((n/lastTest.maxMarks)*100);
+    if(pct>=75)grades.A++;else if(pct>=60)grades.B++;else if(pct>=40)grades.C++;else grades.D++;
+  });
+  var total=lastSl.length||1;
+  var gradeBars=[{g:'A',c:'#22c55e'},{g:'B',c:'#3b82f6'},{g:'C',c:'#eab308'},{g:'D',c:'#ef4444'},{g:'Absent',c:'#94a3b8'}].map(function(x){
+    var n=grades[x.g],pct=Math.round((n/total)*100);
+    return '<div style="margin-bottom:8px">'+
+      '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">'+
+      '<span style="font-weight:700;color:'+x.c+'">Grade '+x.g+'</span>'+
+      '<span style="color:var(--muted)">'+n+' students ('+pct+'%)</span></div>'+
+      '<div style="background:var(--border);border-radius:20px;height:10px">'+
+      '<div style="width:'+pct+'%;background:'+x.c+';border-radius:20px;height:10px"></div></div></div>';
+  }).join('');
+
+  // ── Individual Student Progress (sparkline per student) ───────
+  var stuProgressCards = clsStudents.map(function(s){
+    var tv=clsTests.filter(function(t){return s.subject===t.subject||s.subject==='Both'||t.subject==='Both';});
+    if(!tv.length) return '';
+    var pts=tv.map(function(t){
+      var v=(md[t.id]||{})[s.id];
+      if(v==='AB'||!v) return null;
+      return t.maxMarks>0?Math.round((Number(v)/t.maxMarks)*100):null;
+    });
+    var validPts=pts.filter(function(p){return p!==null;});
+    if(!validPts.length) return '';
+    var avgP=Math.round(validPts.reduce(function(a,b){return a+b;},0)/validPts.length);
+    var lastP=validPts[validPts.length-1];
+    var grade=avgP>=75?'A':avgP>=60?'B':avgP>=40?'C':'D';
+    var gc=grade==='A'?'#22c55e':grade==='B'?'#3b82f6':grade==='C'?'#eab308':'#ef4444';
+    // Sparkline SVG
+    var svgW=120,svgH=36,pad=4;
+    var xs=pts.map(function(_,i){return pad+i*(svgW-2*pad)/Math.max(pts.length-1,1);});
+    var ys=pts.map(function(p){return p===null?null:svgH-pad-Math.round((p/100)*(svgH-2*pad));});
+    var pathD='',dotsSVG='';
+    var first=true;
+    pts.forEach(function(p,i){
+      if(p===null) return;
+      if(first){pathD+='M '+xs[i]+' '+ys[i];first=false;}
+      else pathD+=' L '+xs[i]+' '+ys[i];
+      dotsSVG+='<circle cx="'+xs[i]+'" cy="'+ys[i]+'" r="3" fill="'+gc+'"/>';
+    });
+    // Trend arrow
+    var trendIcon='→';var trendCol='#6b7280';
+    if(validPts.length>=2){
+      var diff=validPts[validPts.length-1]-validPts[validPts.length-2];
+      if(diff>3){trendIcon='↑';trendCol='#22c55e';}
+      else if(diff<-3){trendIcon='↓';trendCol='#ef4444';}
+    }
+    return '<div style="background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;display:flex;align-items:center;gap:10px">'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(s.name)+'</div>'+
+        '<div style="font-size:10px;color:var(--muted)">'+esc(s.subject)+' · '+validPts.length+' tests</div>'+
+      '</div>'+
+      '<svg width="'+svgW+'" height="'+svgH+'" style="flex-shrink:0">'+
+        (pathD?'<path d="'+pathD+'" fill="none" stroke="'+gc+'" stroke-width="2" stroke-linejoin="round"/>':'')+
+        dotsSVG+
+      '</svg>'+
+      '<div style="text-align:center;flex-shrink:0;min-width:44px">'+
+        '<div style="font-size:16px;font-weight:800;color:'+gc+'">'+avgP+'%</div>'+
+        '<div style="font-size:13px;font-weight:800;color:'+trendCol+'">'+trendIcon+'</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+
+  // ── Top 3 & Needs Attention ───────────────────────────────────
+  var stuAvgs=clsStudents.map(function(s){
+    var tv=clsTests.filter(function(t){return s.subject===t.subject||s.subject==='Both'||t.subject==='Both';});
+    var tot=0,obt=0;
+    tv.forEach(function(t){var v=Number((md[t.id]||{})[s.id]||0);if(v){tot+=t.maxMarks;obt+=v;}});
+    return{s:s,avg:tot>0?Math.round((obt/tot)*100):0,tests:tv.length};
+  }).filter(function(x){return x.tests>0;}).sort(function(a,b){return b.avg-a.avg;});
+
+  var top3=stuAvgs.slice(0,3).map(function(x,i){
+    var medal=i===0?'🥇':i===1?'🥈':'🥉';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--bg);border-radius:8px;margin-bottom:6px">'+
+      '<span style="font-size:20px">'+medal+'</span>'+
+      '<div style="flex:1"><div style="font-weight:700;font-size:12px">'+esc(x.s.name)+'</div>'+
+      '<div style="font-size:10px;color:var(--muted)">'+x.s.subject+'</div></div>'+
+      '<div style="font-size:16px;font-weight:800;color:#22c55e">'+x.avg+'%</div></div>';
+  }).join('');
+
+  var weak=stuAvgs.filter(function(x){return x.avg<40&&x.tests>=2;}).slice(0,5).map(function(x){
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px;background:rgba(239,68,68,0.08);border:1px solid #ef444430;border-radius:8px;margin-bottom:6px">'+
+      '<span style="font-size:18px">⚠️</span>'+
+      '<div style="flex:1"><div style="font-weight:700;font-size:12px">'+esc(x.s.name)+'</div>'+
+      '<div style="font-size:10px;color:var(--muted)">'+x.s.subject+' · '+x.tests+' tests</div></div>'+
+      '<div style="font-size:15px;font-weight:800;color:#ef4444">'+x.avg+'%</div></div>';
+  }).join('');
+
+  return '<div class="card">'+
+    '<div class="card-title">📊 Analytics</div>'+
+    '<div class="mb">'+cps(CL_FULL,anlCls,'setAnlCls')+'</div>'+
+    '</div>'+
+
+    summaryCards+
+
+    '<div class="card">'+
+    '<div class="card-title">📈 Class Average — Test Wise</div>'+
+    '<div style="display:flex;gap:4px;align-items:flex-end;padding:4px 0;overflow-x:auto">'+trendBars+'</div>'+
+    '<div style="font-size:10px;color:var(--muted);text-align:center;margin-top:4px">प्रत्येक bar = एक test · रंग = performance</div>'+
+    '</div>'+
+
+    subjectComp+
+
+    '<div class="card">'+
+    '<div class="card-title">🏆 Grade Distribution — '+esc(lastTest.testName)+'</div>'+
+    gradeBars+
+    '</div>'+
+
+    (top3?'<div class="card"><div class="card-title">🥇 Top Performers</div>'+top3+'</div>':'')+
+    (weak?'<div class="card"><div class="card-title">⚠️ Needs Attention (avg &lt;40%)</div>'+weak+'</div>':'')+
+
+    '<div class="card">'+
+    '<div class="card-title">📉 Student Progress — Individual</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">प्रत्येक student चा test-by-test progress graph · ↑ improving · ↓ declining</div>'+
+    stuProgressCards+
+    '</div>';
+}
+
+function setAnlCls(v){anlCls=v;render();}
 function toggleAbsent(sid){
   if(mEn[sid]==='AB'){
     delete mEn[sid]; // absent काढतो
@@ -1449,24 +1814,95 @@ function saveFeeStructure(){
 function setFC(c){fCl=c;render();}
 
 // ── WHATSAPP ──────────────────────────────────────────────────────
+// ── WHATSAPP BULK FEE REMINDER STATE ─────────────────────────
+var feeReminderSelected = {}; // studentId → true/false
+var feeReminderMsg = ''; // custom message template
+var feeReminderInited = false;
+
 function pgWhatsapp(){
   var tests=DB.marks.tests||[];
+
+  // Fee pending list
+  var feePending = DB.students.filter(function(s){
+    return (waCls==='All'||s.cls===waCls||s.cls.indexOf(waCls)>=0) && getBalance(s.id,s.cls,s.subject)>0 && s.phone;
+  });
+  var totalDue = feePending.reduce(function(sum,s){return sum+getBalance(s.id,s.cls,s.subject);},0);
+
+  // Init selection on first load or class change
+  if(!feeReminderInited){
+    feeReminderSelected={};
+    feePending.forEach(function(s){feeReminderSelected[s.id]=true;});
+    feeReminderInited=true;
+  }
+  var selectedCount = feePending.filter(function(s){return feeReminderSelected[s.id];}).length;
+
+  var feeList = feePending.length === 0
+    ? '<div class="empty">✅ सर्वांनी fee भरली आहे!</div>'
+    : feePending.map(function(s){
+        var bal = getBalance(s.id,s.cls,s.subject);
+        var fee = getYearlyFee(s.cls,s.subject,s.id);
+        var paid = getTotalPaid(s.id);
+        var pct = fee>0 ? Math.round((paid/fee)*100) : 0;
+        var checked = feeReminderSelected[s.id] ? 'checked' : '';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg);border-radius:10px;margin-bottom:7px;border:1.5px solid '+(feeReminderSelected[s.id]?'var(--accent)':'var(--border)')+'">'+
+          '<input type="checkbox" '+checked+' onchange="feeReminderSelected['+s.id+']=this.checked;render()" style="width:18px;height:18px;accent-color:var(--accent);flex-shrink:0"/>'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-weight:700;font-size:13px">'+esc(s.name)+'</div>'+
+            '<div style="font-size:10px;color:var(--muted)">'+esc(s.cls)+' · '+esc(s.phone)+'</div>'+
+            '<div style="margin-top:4px;background:var(--border);border-radius:20px;height:5px"><div style="width:'+pct+'%;background:#f97316;border-radius:20px;height:5px"></div></div>'+
+          '</div>'+
+          '<div style="text-align:right;flex-shrink:0">'+
+            '<div style="font-size:14px;font-weight:800;color:#ef4444">₹'+bal+'</div>'+
+            '<div style="font-size:9px;color:var(--muted)">Due</div>'+
+          '</div>'+
+        '</div>';
+      }).join('');
+
   return topbar('WhatsApp')+
+
+  // ── BULK FEE REMINDER (upgraded) ─────────────────────────────
+  '<div class="card" style="border-color:var(--accent)">'+
+  '<div class="card-title">💰 Bulk Fee Reminder</div>'+
+  '<div style="display:flex;gap:8px;margin-bottom:10px">'+
+    '<div style="flex:1;background:rgba(239,68,68,0.1);border:1px solid #ef444440;border-radius:10px;padding:10px;text-align:center">'+
+      '<div style="font-size:18px;font-weight:800;color:#ef4444">'+feePending.length+'</div>'+
+      '<div style="font-size:10px;color:var(--muted)">Pending</div>'+
+    '</div>'+
+    '<div style="flex:1;background:rgba(249,115,22,0.1);border:1px solid #f9731640;border-radius:10px;padding:10px;text-align:center">'+
+      '<div style="font-size:18px;font-weight:800;color:#f97316">₹'+totalDue+'</div>'+
+      '<div style="font-size:10px;color:var(--muted)">Total Due</div>'+
+    '</div>'+
+    '<div style="flex:1;background:rgba(34,197,94,0.1);border:1px solid #22c55e40;border-radius:10px;padding:10px;text-align:center">'+
+      '<div style="font-size:18px;font-weight:800;color:#22c55e">'+selectedCount+'</div>'+
+      '<div style="font-size:10px;color:var(--muted)">Selected</div>'+
+    '</div>'+
+  '</div>'+
+  '<div class="mb"><label>Class Filter</label><div>'+cps(['All'].concat(CL_FULL),waCls,'setWCFee')+'</div></div>'+
+  '<div style="display:flex;gap:8px;margin-bottom:10px">'+
+    '<button class="btn btn-gray" style="margin-top:0;padding:7px;font-size:11px;flex:1" onclick="selectAllFee(true)">✅ Select All</button>'+
+    '<button class="btn btn-gray" style="margin-top:0;padding:7px;font-size:11px;flex:1" onclick="selectAllFee(false)">☐ Deselect All</button>'+
+  '</div>'+
+  feeList+
+  (feePending.length>0?
+    '<div class="mb" style="margin-top:10px"><label>Custom Message (Optional)</label>'+
+    '<textarea id="fee-custom-msg" rows="3" placeholder="उदा. कृपया लवकर fee भरावी..." style="font-size:12px">'+esc(feeReminderMsg)+'</textarea></div>'+
+    '<button class="btn btn-red" onclick="sendBulkFeeReminder()" style="margin-top:4px">💰 '+selectedCount+' Parents ना Reminder पाठवा</button>'
+  :'')+
+  '</div>'+
+
+  // ── BATCH ANNOUNCEMENT ────────────────────────────────────────
   '<div class="card"><div class="card-title">📢 Batch Announcement</div>'+
   '<div class="mb"><label>Select Class</label><div>'+cps(['All'].concat(CL_FULL),waCls,'setWC')+'</div></div>'+
-  '<div class="mb"><label>Message</label><textarea id="wa-msg" rows="4" placeholder="उदा. नमस्कार पालक, उद्या वर्गात चाचणी आहे. आपल्या पाल्याला तयारी करायला सांगा. धन्यवाद!"></textarea></div>'+
+  '<div class="mb"><label>Message</label><textarea id="wa-msg" rows="4" placeholder="उदा. नमस्कार पालक, उद्या वर्गात चाचणी आहे..."></textarea></div>'+
   '<button class="btn btn-green" onclick="sendBatch()">📢 Send to All Students</button></div>'+
 
+  // ── ABSENT ALERT ──────────────────────────────────────────────
   '<div class="card"><div class="card-title">📋 Absent Student Alert</div>'+
   '<div class="mb"><label>Date</label><input type="date" id="wa-att-date" value="'+aDt+'"/></div>'+
   '<div class="mb"><label>Class</label><div>'+cps(CL,waAttCls,'setWAC')+'</div></div>'+
   '<button class="btn btn-orange" onclick="sendAbsent()">📋 Send Absent Alerts</button></div>'+
 
-  '<div class="card"><div class="card-title">💰 Fee Reminder</div>'+
-  '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">Sends reminder to all students with pending balance.</div>'+
-  '<div class="mb"><label>Class</label><div>'+cps(['All'].concat(CL_FULL),waCls,'setWC')+'</div></div>'+
-  '<button class="btn btn-red" onclick="sendFeeRemind()">💰 Send Fee Reminders</button></div>'+
-
+  // ── TEST RESULTS ──────────────────────────────────────────────
   '<div class="card"><div class="card-title">📊 Send Test Results</div>'+
   '<div class="mb"><label>Select Test</label><select id="wa-test">'+
     '<option value="">-- Select Test --</option>'+
@@ -1474,43 +1910,49 @@ function pgWhatsapp(){
   '</select></div>'+
   '<button class="btn btn-purple" onclick="sendResults()">📊 Send Results to Parents</button></div>';
 }
+
 function setWC(v){waCls=v;render();}
+function setWCFee(v){waCls=v;feeReminderInited=false;render();}
 function setWAC(v){waAttCls=v;render();}
 
-function sendBatch(){
-  var msg=document.getElementById('wa-msg');
-  if(!msg||!msg.value.trim()){toast('Please type a message!',true);return;}
-  var text=msg.value.trim();
-  var list=DB.students.filter(function(s){return waCls==='All'||s.cls===waCls;});
-  if(!list.length){toast('No students found!',true);return;}
-  if(!confirm('Send to '+list.length+' students?'))return;
-  var i=0;
-  function next(){if(i>=list.length){toast('All messages opened! ('+list.length+')',false);return;}var s=list[i];i++;waOpen(s.phone,'नमस्कार पालक,\n\n'+text+'\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310');setTimeout(next,1500);}
-  next();
+function selectAllFee(val){
+  var feePending=DB.students.filter(function(s){
+    return(waCls==='All'||s.cls===waCls||s.cls.indexOf(waCls)>=0)&&getBalance(s.id,s.cls,s.subject)>0&&s.phone;
+  });
+  feePending.forEach(function(s){feeReminderSelected[s.id]=val;});
+  render();
 }
-function sendAbsent(){
-  var dateEl=document.getElementById('wa-att-date');
-  var date=dateEl?dateEl.value:aDt;
-  var rec=DB.attendance[date+'_'+waAttCls]||{};
-  var list=DB.students.filter(function(s){return s.cls===waAttCls&&rec[s.id]==='A';});
-  if(!list.length){toast('No absent students on this date!',false);return;}
-  if(!confirm('Send absent alert to '+list.length+' parent(s)?'))return;
+
+function sendBulkFeeReminder(){
+  var customEl = document.getElementById('fee-custom-msg');
+  feeReminderMsg = customEl ? customEl.value : '';
+  var list = DB.students.filter(function(s){
+    return feeReminderSelected[s.id] && getBalance(s.id,s.cls,s.subject)>0 && s.phone;
+  });
+  if(!list.length){toast('कोणीही selected नाही!',true);return;}
+  if(!confirm(list.length+' parents ना fee reminder पाठवायचे?\n\nWhatsApp एक-एक उघडेल.'))return;
   var i=0;
-  function next(){if(i>=list.length){toast('Sent to '+list.length+' parents!',false);return;}var s=list[i];i++;
-    waOpen(s.phone,'नमस्कार पालक,\n\n*'+s.name+'* हे '+fmtDate(date)+' रोजी '+s.cls+' मध्ये *अनुपस्थित*.\n\nचुकीचे वाटल्यास संपर्क करा.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310');
-    setTimeout(next,1500);}
-  next();
-}
-function sendFeeRemind(){
-  var list=DB.students.filter(function(s){return(waCls==='All'||s.cls===waCls)&&getBalance(s.id,s.cls,s.subject)>0;});
-  if(!list.length){toast('No pending fees! ✅',false);return;}
-  if(!confirm('Send reminder to '+list.length+' parent(s)?'))return;
-  var i=0;
-  function next(){if(i>=list.length){toast('Reminders sent! ('+list.length+')',false);return;}var s=list[i];i++;
-    var fee2=getYearlyFee(s.cls,s.subject,s.id);var paid=getTotalPaid(s.id);var bal=fee2-paid;var fee=fee2;
-    var msg='नमस्कार पालक,\n\n*'+s.name+'* ('+s.cls+') यांच्या फीबाबत विनम्र स्मरण\nPhoenix Classes\n\n'+
-      '💰 *फी तपशील:*\nवार्षिक फी: ₹'+fee+'\nभरलेली फी: ₹'+paid+'\n*बाकी रक्कम: ₹'+bal+'*\n\nकृपया लवकरात लवकर फी भरावी.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
-    waOpen(s.phone,msg);setTimeout(next,1500);}
+  function next(){
+    if(i>=list.length){toast('✅ '+list.length+' parents ना reminder पाठवले!',false);return;}
+    var s=list[i]; i++;
+    var fee=getYearlyFee(s.cls,s.subject,s.id);
+    var paid=getTotalPaid(s.id);
+    var bal=getBalance(s.id,s.cls,s.subject);
+    var pct=fee>0?Math.round((paid/fee)*100):0;
+    var msg='नमस्कार पालक 🙏\n\n'+
+      '💰 *फी स्मरणपत्र*\nPhoenix Classes, बहे-वाळवा\n\n'+
+      '👤 विद्यार्थी: *'+s.name+'*\n'+
+      '📚 वर्ग: '+s.cls+'\n\n'+
+      '📋 *फी तपशील:*\n'+
+      '├ वार्षिक फी: ₹'+fee+'\n'+
+      '├ भरलेली फी: ₹'+paid+' ('+pct+'%)\n'+
+      '└ *बाकी रक्कम: ₹'+bal+'*\n\n'+
+      (feeReminderMsg ? feeReminderMsg+'\n\n' : 'कृपया लवकरात लवकर उर्वरित फी भरावी.\n\n')+
+      '📞 9503949009 / 9096815310\n'+
+      '🔥 Phoenix Classes — Learn · Think · Grow';
+    waOpen(s.phone,msg);
+    setTimeout(next,1800);
+  }
   next();
 }
 function sendResults(){
@@ -1758,17 +2200,23 @@ function pgSettings(){
     '<label class="toggle"><input type="checkbox" '+(DB.settings.darkMode?'checked':'')+' onchange="DB.settings.darkMode=this.checked;dbS();applyTheme();render()"/><span class="toggle-slider"></span></label></div>'+
     '<div class="setting-row"><div><div style="font-size:13px;font-weight:600">App Theme Color</div></div><div>'+tc.map(function(t){return '<span class="theme-dot '+(DB.settings.theme===t.id?'on':'')+'" style="background:'+t.c+'" onclick="setTheme(\''+t.id+'\')"></span>';}).join('')+'</div></div></div>'+
     '<div class="card"><div class="card-title">☁️ Data</div>'+
-    '<div style="background:rgba(34,197,94,0.1);border:1px solid #22c55e;border-radius:10px;padding:12px;margin-bottom:10px">'+
-    '<div style="font-size:12px;font-weight:700;color:#22c55e;margin-bottom:4px">✅ Firebase Connected!</div>'+
-    '<div style="font-size:11px;color:var(--muted)">Data automatically syncs to Google Sheets after every change.</div></div>'+
-    '<button class="btn btn-green" onclick="syncToSheets()">☁️ Firebase Sync करा</button>'+
-    '<button class="btn btn-blue" onclick="loadFromSheets()">📥 Firebase मधून Load करा</button>'+
+    (isOnline()
+      ? '<div style="background:rgba(34,197,94,0.1);border:1px solid #22c55e;border-radius:10px;padding:12px;margin-bottom:10px">'+
+        '<div style="font-size:12px;font-weight:700;color:#22c55e;margin-bottom:2px">✅ Firebase Connected!</div>'+
+        '<div style="font-size:11px;color:var(--muted)">Last sync: <b style="color:var(--text)">'+getLastSyncText()+'</b></div></div>'
+      : '<div style="background:rgba(239,68,68,0.1);border:1px solid #ef4444;border-radius:10px;padding:12px;margin-bottom:10px">'+
+        '<div style="font-size:12px;font-weight:700;color:#ef4444;margin-bottom:2px">⚠️ Internet नाही!</div>'+
+        '<div style="font-size:11px;color:var(--muted)">Data locally saved आहे. Internet आल्यावर sync होईल.</div></div>'
+    )+
+    '<button class="btn btn-green" onclick="safeSync()">☁️ Firebase Sync करा</button>'+
+    '<button class="btn btn-blue" onclick="safeLoad()">📥 Firebase मधून Load करा</button>'+
     '<button class="btn btn-green" style="background:#22c55e" onclick="exportData()">💾 Download Local Backup</button>'+
     '<button class="btn btn-purple" onclick="document.getElementById(\'importFile\').click()">📤 Restore Local Backup</button>'+
-    '<button class="btn btn-red" onclick="clearAll()">🗑️ Clear All Data</button></div>'+
+    '<button class="btn btn-red" onclick="safeClearAll()">🗑️ Clear All Data</button></div>'+
     '<div class="card"><div class="card-title">ℹ️ About</div><div style="font-size:12px;color:var(--muted);line-height:1.8"><b style="color:var(--text)">Phoenix Classes App</b><br>Maharashtra Board · Class 8–10<br>Maths & Science · Free Forever<br><br>Built with ❤️ for Phoenix Classes</div></div>'+
     '<div class="card"><div class="card-title">🔐 Security</div>'+
-    '<div style="font-size:12px;color:var(--muted);margin-bottom:12px">तुम्ही Teacher Admin म्हणून logged in आहात. Logout केल्यावर पुन्हा password लागेल.</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:12px">तुम्ही Teacher Admin म्हणून logged in आहात. Password Firebase मध्ये SHA-256 hash स्वरूपात secure आहे.</div>'+
+    '<button class="btn btn-orange" style="margin-bottom:8px" onclick="changePassword()">🔑 Password बदला</button>'+
     '<button class="btn" style="background:linear-gradient(135deg,#dc2626,#b91c1c);box-shadow:0 4px 16px rgba(220,38,38,0.35)" onclick="if(confirm(\'Logout करायचे का?\'))doAdminLogout()">🔓 Logout</button></div>';
 }
 function setTheme(t){DB.settings.theme=t;dbS();applyTheme();render();toast('Theme updated!',false);}
@@ -1792,11 +2240,9 @@ function clearAll(){
   // Save to local storage
   localStorage.removeItem('pxDB3');
   dbS();
-  // Immediately sync to Sheets — don't wait
-  clearTimeout(window._syncTimer);
-  syncToSheets();
+  // NOTE: Firebase sync is NOT done automatically after clear — user must manually sync
   render();
-  toast('All data cleared and synced!',false);
+  toast('Local data cleared! Firebase sync manually करा जर तिथेही clear करायचे असेल.',false);
 }
 
 // ── BOARD RESULTS ────────────────────────────────────────────────
@@ -1804,13 +2250,13 @@ var brPhotoId=null;
 function triggerBRPhoto(idx){brPhotoId=idx;document.getElementById('brPhotoFile').click();}
 function uploadBRPhoto(inp){
   var file=inp.files[0];if(!file||brPhotoId===null)return;
-  var r=new FileReader();
-  r.onload=function(ev){
+  toast('📸 Photo compress करत आहे...',false);
+  compressPhoto(file, 400, 800, function(data, sizeKB){
     if(!DB.boardResults[brPhotoId])return;
-    DB.boardResults[brPhotoId].photo=ev.target.result;
-    dbSWithSync();render();toast('Photo updated!',false);
-  };
-  r.readAsDataURL(file);inp.value='';
+    DB.boardResults[brPhotoId].photo=data;
+    dbSWithSync();render();toast('✅ Photo updated! ('+sizeKB+'KB)',false);
+  });
+  inp.value='';
 }
 function pgBoardResults(){
   if(!DB.boardResults)DB.boardResults=[];
@@ -1904,33 +2350,126 @@ function render(){
     document.getElementById('app').innerHTML='<div class="card" style="color:#ef4444;padding:20px"><b>Error:</b> '+ex.message+'<br><button class="btn btn-orange" onclick="render()" style="margin-top:10px">Retry</button></div>';
   }
 }
-// ── ADMIN LOGIN ────────────────────────────────────────────────
-// Password बदलायचा असेल तर खाली ADMIN_PASS मध्ये बदला
-var ADMIN_PASS = 'phoenix2025';
+// ── ADMIN LOGIN (Firebase-verified — no password in HTML) ──────
 var SESSION_KEY = 'pcAdminAuth';
+var AUTH_FB = 'https://phoenix-classes-5050-default-rtdb.asia-southeast1.firebasedatabase.app/adminAuth.json';
+
+// Brute-force protection
+var _loginAttempts = 0;
+var _loginLocked = false;
+var _loginLockTimer = null;
 
 function isLoggedIn(){
   return sessionStorage.getItem(SESSION_KEY) === 'yes';
 }
-function doAdminLogin(){
+
+function setLoginLoading(on){
+  var btn = document.getElementById('login-btn');
   var inp = document.getElementById('admin-pass');
-  var err = document.getElementById('login-err');
-  if(!inp) return;
-  if(inp.value === ADMIN_PASS){
-    sessionStorage.setItem(SESSION_KEY,'yes');
-    var ls = document.getElementById('login-screen');
-    if(ls){ ls.style.opacity='0'; ls.style.transition='opacity .3s'; setTimeout(function(){ls.style.display='none';ls.style.opacity='';},300); }
-    startApp();
-  } else {
-    if(err) err.style.display='block';
-    inp.value='';inp.focus();
-    inp.style.borderColor='rgba(220,38,38,0.6)';
-    setTimeout(function(){inp.style.borderColor='';if(err)err.style.display='none';},2500);
-  }
+  if(btn) btn.textContent = on ? '⏳ Verifying...' : 'Login →';
+  if(inp) inp.disabled = on;
+  if(btn) btn.disabled = on;
 }
+
+function showLoginErr(msg){
+  var err = document.getElementById('login-err');
+  if(err){ err.textContent = msg; err.style.display='block'; }
+  var inp = document.getElementById('admin-pass');
+  if(inp){ inp.style.borderColor='rgba(220,38,38,0.6)'; inp.value=''; inp.focus(); }
+  setTimeout(function(){
+    if(err) err.style.display='none';
+    if(inp) inp.style.borderColor='';
+  }, 3000);
+}
+
+function doAdminLogin(){
+  if(_loginLocked){ showLoginErr('❌ खूप attempts! 30 seconds थांबा.'); return; }
+  var inp = document.getElementById('admin-pass');
+  if(!inp || !inp.value.trim()) return;
+  var typed = inp.value.trim();
+
+  // Rate limit: 5 attempts → 30 sec lockout
+  _loginAttempts++;
+  if(_loginAttempts >= 5){
+    _loginLocked = true;
+    showLoginErr('❌ खूप attempts! 30 seconds थांबा.');
+    clearTimeout(_loginLockTimer);
+    _loginLockTimer = setTimeout(function(){ _loginLocked=false; _loginAttempts=0; }, 30000);
+    return;
+  }
+
+  if(!navigator.onLine){ showLoginErr('❌ Internet नाही! Connect करा.'); return; }
+
+  setLoginLoading(true);
+
+  // Hash the typed password with SHA-256, then compare with Firebase stored hash
+  crypto.subtle.digest('SHA-256', new TextEncoder().encode(typed))
+    .then(function(hashBuf){
+      var hashArr = Array.from(new Uint8Array(hashBuf));
+      var hashHex = hashArr.map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+      return fetch(AUTH_FB).then(function(r){ return r.json(); }).then(function(stored){
+        return { typed: hashHex, stored: stored };
+      });
+    })
+    .then(function(res){
+      setLoginLoading(false);
+      if(res.stored && res.stored.hash === res.typed){
+        // ✅ Match
+        _loginAttempts = 0;
+        sessionStorage.setItem(SESSION_KEY,'yes');
+        var ls = document.getElementById('login-screen');
+        if(ls){ ls.style.opacity='0'; ls.style.transition='opacity .3s'; setTimeout(function(){ls.style.display='none';ls.style.opacity='';},300); }
+        startApp();
+      } else {
+        showLoginErr('❌ Incorrect password. Try again. ('+_loginAttempts+'/5)');
+      }
+    })
+    .catch(function(e){
+      setLoginLoading(false);
+      showLoginErr('❌ Firebase शी connect होता आले नाही. Internet check करा.');
+    });
+}
+
 function doAdminLogout(){
   sessionStorage.removeItem(SESSION_KEY);
   location.reload();
+}
+
+// ── CHANGE PASSWORD (Settings मधून) ────────────────────────────
+function changePassword(){
+  var cur = prompt('सध्याचा password टाका:');
+  if(!cur) return;
+  var nw  = prompt('नवीन password टाका (min 8 chars):');
+  if(!nw || nw.length < 8){ toast('Password खूप छोटा आहे! (min 8 chars)',true); return; }
+  var cf  = prompt('नवीन password पुन्हा टाका:');
+  if(nw !== cf){ toast('Passwords जुळत नाहीत!',true); return; }
+  if(!navigator.onLine){ toast('Internet नाही!',true); return; }
+
+  // Hash current password and verify first
+  crypto.subtle.digest('SHA-256', new TextEncoder().encode(cur))
+    .then(function(h){
+      var curHash = Array.from(new Uint8Array(h)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+      return fetch(AUTH_FB).then(function(r){return r.json();}).then(function(stored){
+        if(!stored || stored.hash !== curHash) throw new Error('wrong_current');
+        return crypto.subtle.digest('SHA-256', new TextEncoder().encode(nw));
+      });
+    })
+    .then(function(h){
+      var newHash = Array.from(new Uint8Array(h)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+      return fetch(AUTH_FB, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ hash: newHash, updatedAt: Date.now() })
+      });
+    })
+    .then(function(r){
+      if(r.ok) toast('✅ Password बदलला! पुन्हा login करा.',false);
+      else toast('❌ Firebase error. Try again.',true);
+    })
+    .catch(function(e){
+      if(e.message==='wrong_current') toast('❌ सध्याचा password चुकीचा आहे!',true);
+      else toast('❌ Error: '+e.message,true);
+    });
 }
 function startApp(){
   try {

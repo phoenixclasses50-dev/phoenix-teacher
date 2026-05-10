@@ -1706,7 +1706,7 @@ function pgFeeCollect(){
     }
   }
   return '<div class="grid2" style="margin-bottom:14px">'+sc('₹'+totalC,'Collected','#22c55e')+sc('₹'+totalP,'Pending','#ef4444')+'</div>'+
-    '<div class="mb">'+cps(['All'].concat(CL),fCl,'setFC')+'</div>'+
+    '<div class="mb">'+cps(['All'].concat(CL_FULL),fCl,'setFC')+'</div>'+
     '<div class="card"><div class="card-title">Student Fee Status</div>'+
     '<table><thead><tr><th></th><th>Student</th><th>Paid</th><th>Balance</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+modal;
 }
@@ -1727,29 +1727,7 @@ function openHistoryReceipt(sid, idx){
   var p = pays[idx];
   if(!p){ toast('Payment सापडली नाही!', true); return; }
   var rcNo = p.receiptNo || ('RC-'+String(idx).padStart(4,'0'));
-  var info = generateReceipt(ps, p, rcNo);
-  // WhatsApp option for history receipts too
-  if(ps.phone && info){
-    setTimeout(function(){
-      if(confirm('WhatsApp वर receipt पाठवायची का '+ps.name+' च्या parent ला?')){
-        var msg='नमस्कार पालक 🙏\n\n✅ *फी पावती — Phoenix Classes*\n'+
-          '━━━━━━━━━━━━━━━━\n'+
-          '🧾 Receipt No: *'+rcNo+'*\n'+
-          '👤 विद्यार्थी: *'+ps.name+'*\n'+
-          '📚 वर्ग: '+ps.cls+'\n'+
-          '🗣️ माध्यम: '+(ps.cls.indexOf('Semi-English')>=0?'Semi-English':'Marathi')+'\n'+
-          '📅 दिनांक: '+fmtDate(p.date)+'\n'+
-          '━━━━━━━━━━━━━━━━\n'+
-          '💰 भरलेली रक्कम: *₹'+p.amount+'*\n'+
-          '📊 एकूण भरलेली: ₹'+info.paid+'\n'+
-          '🏫 वार्षिक फी: ₹'+info.fee+'\n'+
-          (info.fullyClear?'✅ *Fee Fully Cleared! 🎉*':'⚠️ बाकी रक्कम: ₹'+info.bal)+'\n'+
-          '━━━━━━━━━━━━━━━━\n'+
-          'धन्यवाद! 🔥 Phoenix Classes\n9503949009 / 9096815310';
-        waOpen(ps.phone, msg);
-      }
-    }, 400);
-  }
+  generateReceipt(ps, p, rcNo);
 }
 
 function delAtt(date,cls){
@@ -1767,7 +1745,25 @@ function generateReceipt(ps, payment, receiptNo){
   var prevPaid = paid - payment.amount;
   var fullyClear = bal <= 0;
   var rcNo = receiptNo || ('RC-'+Date.now().toString().slice(-6));
-  var w = window.open('','_blank','width=400,height=600');
+  // WhatsApp message तयार करतो — receipt च्या आतच button दाखवतो
+  var waPhone = ps.phone ? String(ps.phone).replace(/\D/g,'') : '';
+  if(waPhone.length===10) waPhone='91'+waPhone;
+  var waMsg='नमस्कार पालक 🙏\n\n✅ *फी पावती — Phoenix Classes*\n'+
+    '━━━━━━━━━━━━━━━━\n'+
+    '🧾 Receipt No: *'+rcNo+'*\n'+
+    '👤 विद्यार्थी: *'+ps.name+'*\n'+
+    '📚 वर्ग: '+ps.cls+'\n'+
+    '🗣️ माध्यम: '+(ps.cls.indexOf('Semi-English')>=0?'Semi-English':'Marathi')+'\n'+
+    '📅 दिनांक: '+fmtDate(payment.date)+'\n'+
+    '━━━━━━━━━━━━━━━━\n'+
+    '💰 भरलेली रक्कम: *₹'+payment.amount+'*\n'+
+    '📊 एकूण भरलेली: ₹'+paid+'\n'+
+    '🏫 वार्षिक फी: ₹'+fee+'\n'+
+    (fullyClear?'✅ *Fee Fully Cleared! 🎉*':'⚠️ बाकी रक्कम: ₹'+bal)+'\n'+
+    '━━━━━━━━━━━━━━━━\n'+
+    'धन्यवाद! 🔥 Phoenix Classes\n9503949009 / 9096815310';
+  var waUrl = waPhone ? 'https://wa.me/'+waPhone+'?text='+encodeURIComponent(waMsg) : '';
+  var w = window.open('','_blank','width=420,height=680');
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/>'+
   '<title>Fee Receipt — '+ps.name+'</title>'+
   '<meta name="viewport" content="width=device-width,initial-scale=1"/>'+
@@ -1796,9 +1792,10 @@ function generateReceipt(ps, payment, receiptNo){
   '.progress-fill{background:linear-gradient(90deg,#f97316,#22c55e);border-radius:20px;height:8px;}'+
   '.footer{text-align:center;font-size:10px;color:#94a3b8;border-top:1px dashed #e2e8f0;padding-top:12px;margin-top:4px;}'+
   '.stamp{display:inline-block;border:2px solid #22c55e;border-radius:8px;padding:4px 12px;color:#22c55e;font-weight:800;font-size:13px;margin:8px 0;transform:rotate(-2deg);}'+
-  '.btn-row{display:flex;gap:8px;margin-top:14px;}'+
-  'button{flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;}'+
+  '.btn-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}'+
+  'button{flex:1;min-width:80px;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;}'+
   '.btn-print{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;}'+
+  '.btn-wa{background:#25d366;color:#fff;}'+
   '.btn-close{background:#f1f5f9;color:#374151;}'+
   '@media print{.btn-row{display:none!important;}body{background:#fff;padding:0;}'+
   '.receipt{box-shadow:none;border-radius:0;}}'+
@@ -1841,13 +1838,13 @@ function generateReceipt(ps, payment, receiptNo){
     '</div>'+
     '<div class="btn-row">'+
       '<button class="btn-print" onclick="window.print()">🖨️ Print</button>'+
+      (waUrl?'<button class="btn-wa" onclick="window.open(\''+waUrl+'\',\'_blank\')">📲 WhatsApp</button>':'')+
       '<button class="btn-close" onclick="window.close()">✕ Close</button>'+
     '</div>'+
   '</div>'+
   '</body></html>');
   w.document.close();
   return { fee, paid, bal, fullyClear, rcNo };
-}
 
 function savePay(){
   var amt=document.getElementById('pay-amt');
@@ -1866,28 +1863,7 @@ function savePay(){
   render();
   toast('✅ Payment ₹'+payment.amount+' saved! Receipt No: '+rcNo,false);
   if(ps){
-    var info = generateReceipt(ps, payment, rcNo);
-    if(ps.phone){
-      setTimeout(function(){
-        if(confirm('WhatsApp वर receipt पाठवायची का '+ps.name+' च्या parent ला?')){
-          var msg='नमस्कार पालक 🙏\n\n✅ *फी पावती — Phoenix Classes*\n'+
-            '━━━━━━━━━━━━━━━━\n'+
-            '🧾 Receipt No: *'+rcNo+'*\n'+
-            '👤 विद्यार्थी: *'+ps.name+'*\n'+
-            '📚 वर्ग: '+ps.cls+'\n'+
-            '🗣️ माध्यम: '+(ps.cls.indexOf('Semi-English')>=0?'Semi-English':'Marathi')+'\n'+
-            '📅 दिनांक: '+fmtDate(payment.date)+'\n'+
-            '━━━━━━━━━━━━━━━━\n'+
-            '💰 भरलेली रक्कम: *₹'+payment.amount+'*\n'+
-            '📊 एकूण भरलेली: ₹'+info.paid+'\n'+
-            '🏫 वार्षिक फी: ₹'+info.fee+'\n'+
-            (info.fullyClear?'✅ *Fee Fully Cleared! 🎉*':'⚠️ बाकी रक्कम: ₹'+info.bal)+'\n'+
-            '━━━━━━━━━━━━━━━━\n'+
-            'धन्यवाद! 🔥 Phoenix Classes\n9503949009 / 9096815310';
-          waOpen(ps.phone,msg);
-        }
-      },400);
-    }
+    generateReceipt(ps, payment, rcNo);
   }
 }
 
@@ -1916,7 +1892,7 @@ function pgFeeHistory(){
         '</div></div>';
     }).join('');
   var total=items.reduce(function(s,i){return s+i.payment.amount;},0);
-  return '<div class="mb">'+cps(['All'].concat(CL),fCl,'setFC')+'</div>'+
+  return '<div class="mb">'+cps(['All'].concat(CL_FULL),fCl,'setFC')+'</div>'+
     '<div class="card" style="border-color:var(--green)">'+
     '<div style="display:flex;justify-content:space-between;align-items:center">'+
     '<div style="font-size:12px;color:var(--muted)">Total Shown</div>'+

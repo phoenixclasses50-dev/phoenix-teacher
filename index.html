@@ -928,7 +928,7 @@ function pgStu(){
       }
       return '<tr>'+
         '<td>'+photoEl(s.id,s.name)+'</td>'+
-        '<td style="font-weight:700;cursor:pointer;color:var(--accent)" onclick="selStu='+s.id+';render()">'+nameHtml+'<br><span style="font-size:10px;color:var(--muted)">'+s.cls+'</span>'+(s.batchType==='Vacation'?'<br><span style="background:#7c3aed22;color:#8b5cf6;border:1px solid #8b5cf644;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">🏖️ Vacation</span>':'')+badgeHtml(badges)+'</td>'+
+        '<td style="font-weight:700;cursor:pointer;color:var(--accent)" onclick="selStu='+s.id+';render()">'+nameHtml+'<br><span style="font-size:10px;color:var(--muted)">'+s.cls+'</span>'+(s.batchType==='Vacation'?'<br><span style="background:#7c3aed22;color:#8b5cf6;border:1px solid #8b5cf644;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">🏖️ Vacation</span>':'')+(s.disabled?'<br><span style="background:#ef444422;color:#ef4444;border:1px solid #ef444444;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">🚫 Disabled</span>':'')+badgeHtml(badges)+'</td>'+
         '<td>'+bdg(s.subject,'#3b82f6')+'</td>'+
         '<td>'+(fee>0&&bal<=0?bdg('Full Paid','#22c55e'):fee===0?bdg('Fee Not Set','#94a3b8'):bdg('₹'+bal+' Due','#ef4444'))+'</td>'+
         '<td style="display:flex;gap:4px"><button class="btn-sm" style="background:#3b82f6" onclick="openEditStu('+s.id+')">✏️</button><button class="btn-sm btn-red" onclick="dStu('+s.id+')">✕</button></td>'+
@@ -987,6 +987,12 @@ function openEditStu(id){
       '<div class="grid2 mb">'+
       '<div><label>Batch Type</label><select id="edit-sbatch" onchange="document.getElementById(\'edit-vacfee-row\').style.display=this.value===\'Vacation\'?\'block\':\'none\'" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none"><option value="Regular">Regular (वार्षिक)</option><option value="Vacation">Vacation Batch (सुट्टी)</option></select></div>'+
       '<div id="edit-vacfee-row"><label>Custom Fee (₹)</label><input id="edit-scustomfee" type="number" placeholder="e.g. 800" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:Arial,sans-serif"/></div></div>'+
+      '<div class="mb" style="padding:10px;background:rgba(239,68,68,0.07);border:1.5px solid rgba(239,68,68,0.25);border-radius:10px;display:flex;justify-content:space-between;align-items:center">'+
+      '<div><div style="font-size:12px;font-weight:800;color:#ef4444">🚫 Student Disable करा</div>'+
+      '<div style="font-size:10px;color:var(--muted)">Disabled असल्यास Attendance/Marks/HW मध्ये दिसणार नाही</div></div>'+
+      '<label class="toggle"><input type="checkbox" id="edit-disabled" onchange="var r=document.getElementById(\'edit-disabled-reason-row\');if(r)r.style.display=this.checked?\'block\':\'none\'"><span class="toggle-slider"></span></label>'+
+      '</div>'+
+      '<div id="edit-disabled-reason-row" style="display:none" class="mb"><label>Disable कारण (Optional)</label><input id="edit-disabled-reason" placeholder="उदा. Vacation संपेपर्यंत" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:Arial,sans-serif"/></div>'+
       '<div style="display:flex;gap:8px;margin-top:8px">'+
       '<button onclick="saveEditStu()" style="flex:1;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer">Save Changes</button>'+
       '<button onclick="closeEditStu()" style="flex:1;background:var(--border);color:var(--muted);border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer">Cancel</button>'+
@@ -1006,6 +1012,12 @@ function openEditStu(id){
   if(bEl){bEl.value=s.batchType||'Regular';}
   if(cfEl){cfEl.value=s.customFee||'';}
   if(vRow){vRow.style.display=(s.batchType==='Vacation')?'block':'none';}
+  var disEl2=document.getElementById('edit-disabled');
+  var disReasonEl2=document.getElementById('edit-disabled-reason');
+  var disRow=document.getElementById('edit-disabled-reason-row');
+  if(disEl2){disEl2.checked=s.disabled||false;}
+  if(disReasonEl2){disReasonEl2.value=s.disabledReason||'';}
+  if(disRow){disRow.style.display=(s.disabled)?'block':'none';}
   document.getElementById('edit-stu-modal').style.display='flex';
   // Set birthdate AFTER modal is visible (fixes cached modal bug)
   var bdElFinal=document.getElementById('edit-sbd');
@@ -1036,6 +1048,10 @@ function saveEditStu(){
       var bt=bEl2?bEl2.value:'Regular';
       DB.students[i].batchType=bt;
       DB.students[i].customFee=bt==='Vacation'&&cfEl2?+cfEl2.value||0:0;
+      var disEl=document.getElementById('edit-disabled');
+      var disReasonEl=document.getElementById('edit-disabled-reason');
+      DB.students[i].disabled=disEl?disEl.checked:false;
+      DB.students[i].disabledReason=disReasonEl?disReasonEl.value:'';
       break;
     }
   }
@@ -1153,7 +1169,7 @@ function pgReport(id){
 
 // ── ATTENDANCE ────────────────────────────────────────────────────
 function pgAtt(){
-  var cs=DB.students.filter(function(s){return aCl==='All'?true:s.cls===aCl||s.cls.indexOf(aCl)>=0;});
+  var cs=DB.students.filter(function(s){return (aCl==='All'?true:s.cls===aCl||s.cls.indexOf(aCl)>=0)&&!s.disabled;});
   var key=aDt+'_'+aCl,dr=DB.attendance[key]||{},pr=0,ab=0;
   for(var k in dr){if(dr[k]==='P')pr++;else ab++;}
   var rows=cs.length===0?'<tr><td colspan="5" class="empty">No students in '+aCl+'.</td></tr>':
@@ -1232,6 +1248,24 @@ function mHW(id,s){
   DB.homework[k][id]=s;
   dbSWithSync();render();
   toast(s==='Y'?'गृहपाठ पूर्ण ✓':'गृहपाठ पूर्ण नाही ✗',s==='N');
+  // Auto WA popup if homework not done and student has phone
+  if(s==='N'){
+    var stu=null;for(var i=0;i<DB.students.length;i++){if(DB.students[i].id===id){stu=DB.students[i];break;}}
+    if(stu&&stu.phone){
+      setTimeout(function(){
+        if(confirm('📚 '+stu.name+' यांनी गृहपाठ केला नाही!\nपालकांना WhatsApp Alert पाठवायचे?')){
+          var msg='नमस्कार पालक,\n\n📚 *गृहपाठ सूचना*\nPhoenix Classes\n\n'+
+            '👤 विद्यार्थी: *'+stu.name+'*\n'+
+            '📚 वर्ग: '+stu.cls+'\n'+
+            '📅 दिनांक: '+fmtDate(aDt)+'\n\n'+
+            '❌ *आज '+stu.name+' यांनी गृहपाठ पूर्ण केलेला नाही.*\n\n'+
+            'कृपया घरी गृहपाठ पूर्ण करण्यास मदत करा.\n\n'+
+            'धन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
+          waOpen(stu.phone,msg);
+        }
+      },400);
+    }
+  }
 }
 
 function sendHWAlert(){
@@ -1301,7 +1335,7 @@ function setAC(c){aCl=c;render();}
 
 // ── MARKS ─────────────────────────────────────────────────────────
 function pgHW(){
-  var cs=DB.students.filter(function(s){return aCl==='All'?true:s.cls===aCl||s.cls.indexOf(aCl)>=0;});
+  var cs=DB.students.filter(function(s){return (aCl==='All'?true:s.cls===aCl||s.cls.indexOf(aCl)>=0)&&!s.disabled;});
   var hwKey=aDt+'_'+aCl;
   var hwDone=0,hwMiss=0;
   cs.forEach(function(s){
@@ -1376,7 +1410,7 @@ function pgMrk(){
         '</div>';
     }).join('');
   var stObj=null;for(var i=0;i<tests.length;i++){if(tests[i].id===selT){stObj=tests[i];break;}}
-  var ts=stObj?DB.students.filter(function(s){return s.cls===stObj.cls&&(s.subject===stObj.subject||s.subject==='Both'||stObj.subject==='Both');}):[];
+  var ts=stObj?DB.students.filter(function(s){return s.cls===stObj.cls&&(s.subject===stObj.subject||s.subject==='Both'||stObj.subject==='Both')&&!s.disabled;}):[];
   var mp='<div class="empty">Select a test to enter marks</div>';
   if(stObj){
     var rows=ts.length===0?'<tr><td colspan="5" class="empty">No students.</td></tr>':

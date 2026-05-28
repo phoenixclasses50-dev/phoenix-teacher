@@ -990,7 +990,7 @@ function openEditStu(id){
       '<div class="mb" style="padding:10px;background:rgba(239,68,68,0.07);border:1.5px solid rgba(239,68,68,0.25);border-radius:10px;display:flex;justify-content:space-between;align-items:center">'+
       '<div><div style="font-size:12px;font-weight:800;color:#ef4444">🚫 Student Disable करा</div>'+
       '<div style="font-size:10px;color:var(--muted)">Disabled असल्यास Attendance/Marks/HW मध्ये दिसणार नाही</div></div>'+
-      '<label class="toggle"><input type="checkbox" id="edit-disabled" onchange="var r=document.getElementById(\'edit-disabled-reason-row\');if(r)r.style.display=this.checked?\'block\':\'none\'"><span class="toggle-slider"></span></label>'+
+      '<label class="toggle"><input type="checkbox" id="edit-disabled" onchange="toggleDisabledRow(this)"><span class="toggle-slider"></span></label>'+
       '</div>'+
       '<div id="edit-disabled-reason-row" style="display:none" class="mb"><label>Disable कारण (Optional)</label><input id="edit-disabled-reason" placeholder="उदा. Vacation संपेपर्यंत" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;font-family:Arial,sans-serif"/></div>'+
       '<div style="display:flex;gap:8px;margin-top:8px">'+
@@ -1022,6 +1022,10 @@ function openEditStu(id){
   // Set birthdate AFTER modal is visible (fixes cached modal bug)
   var bdElFinal=document.getElementById('edit-sbd');
   if(bdElFinal)bdElFinal.value=s.birthdate||'';
+}
+function toggleDisabledRow(el){
+  var r=document.getElementById('edit-disabled-reason-row');
+  if(r)r.style.display=el.checked?'block':'none';
 }
 function closeEditStu(){
   var m=document.getElementById('edit-stu-modal');
@@ -1373,7 +1377,7 @@ function pgHW(){
     '<div class="card" style="margin-bottom:12px">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
         '<div style="font-weight:800;font-size:13px">'+aCl+' — '+aDt+'</div>'+
-        '<button class="btn-sm btn-red" onclick="delHWAll(''+aDt+'',''+aCl+'')" style="flex-shrink:0">🗑️ Clear All</button>'+
+        '<button class="btn-sm btn-red" onclick="delHWAll()">🗑️ Clear All</button>'
       '</div>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
         '<span style="background:#22c55e22;color:#22c55e;padding:4px 10px;border-radius:20px;font-size:13px">✅ पूर्ण: '+hwDone+'</span>'+
@@ -1783,7 +1787,8 @@ function delHW(id){
   if(DB.homework&&DB.homework[k])delete DB.homework[k][id];
   dbSWithSync();render();toast('गृहपाठ record delete झाला!',false);
 }
-function delHWAll(date,cls){
+function delHWAll(){
+  var date=aDt,cls=aCl;
   if(!confirm(cls+' - '+date+' चा सर्व गृहपाठ data delete करायचा?'))return;
   if(!DB.homework)return;
   Object.keys(DB.homework).forEach(function(k){

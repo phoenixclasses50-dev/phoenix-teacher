@@ -631,6 +631,35 @@ function isBirthdayToday(bdStr){
 function birthdayStudentsToday(){
   return DB.students.filter(function(s){return isBirthdayToday(s.birthdate);});
 }
+function birthdayStudentsThisWeek(){
+  var today=new Date();
+  return DB.students.filter(function(s){
+    if(!s.birthdate)return false;
+    var bd=new Date(s.birthdate);
+    for(var d=1;d<=6;d++){
+      var nd=new Date(today);nd.setDate(today.getDate()+d);
+      if(bd.getDate()===nd.getDate()&&bd.getMonth()===nd.getMonth())return true;
+    }
+    return false;
+  });
+}
+function getStudentAvgMarks(sid,cls,subject){
+  var tests=(DB.marks.tests||[]).filter(function(t){return t.cls===cls&&(t.subject===subject||subject==='Both'||t.subject==='Both');});
+  var md=DB.marks.data||{},tot=0,obt=0;
+  tests.forEach(function(t){var v=Number((md[t.id]||{})[sid]||0);if(v){tot+=t.maxMarks;obt+=v;}});
+  return tot>0?Math.round((obt/tot)*100):null;
+}
+function getHWStats(sid,cls){
+  var done=0,miss=0,total=0;
+  if(!DB.homework)return{done:0,miss:0,total:0,pct:null};
+  Object.keys(DB.homework).forEach(function(k){
+    if(k.indexOf('_'+cls)>=0||k.indexOf('_All')>=0){
+      var rec=DB.homework[k];
+      if(rec.hasOwnProperty(sid)){total++;if(rec[sid]==='Y')done++;else if(rec[sid]==='N')miss++;}
+    }
+  });
+  return{done:done,miss:miss,total:total,pct:total>0?Math.round((done/total)*100):null};
+}
 function sendBirthdayWA(s){
   var msg='🎂 *वाढदिवसाच्या हार्दिक शुभेच्छा!* 🎉\n\n'+
     'नमस्कार,\n\n'+
@@ -800,21 +829,27 @@ function sendReportWA(sid){
 }
 
 function miniChart(sid,cls){
-  var tests=(DB.marks.tests||[]).filter(function(t){return t.cls===cls;}).slice(-6);
+  var tests=(DB.marks.tests||[]).filter(function(t){return t.cls===cls;}).slice(-8);
   if(!tests.length)return '<div style="color:var(--muted);font-size:11px;text-align:center;padding:12px">No test data yet</div>';
   var md=DB.marks.data||{};
   var bars=tests.map(function(t){
     var v=Number((md[t.id]||{})[sid]||0);
     var pct=v?Math.round((v/t.maxMarks)*100):0;
     var color=pct>=75?'#22c55e':pct>=60?'#3b82f6':pct>=40?'#eab308':'#ef4444';
-    return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">'+
-      '<div style="font-size:9px;color:var(--muted);font-weight:700">'+pct+'%</div>'+
-      '<div style="width:100%;background:var(--border);border-radius:4px;height:60px;display:flex;align-items:flex-end">'+
-      '<div style="width:100%;height:'+Math.max(pct,3)+'%;background:'+color+';border-radius:4px;transition:height .3s"></div></div>'+
-      '<div style="font-size:9px;color:var(--muted);text-align:center;max-width:40px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">'+esc(t.testName.split(' ')[0])+'</div>'+
+    var marks=v?v+'/'+t.maxMarks:'—';
+    return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:36px">'+
+      '<div style="font-size:9px;color:var(--muted);font-weight:700">'+(pct?pct+'%':'—')+'</div>'+
+      '<div style="width:100%;background:var(--border);border-radius:4px;height:70px;display:flex;align-items:flex-end;position:relative">'+
+      '<div style="width:100%;height:'+Math.max(pct,3)+'%;background:'+color+';border-radius:4px;transition:height .5s"></div></div>'+
+      '<div style="font-size:8px;color:var(--muted);text-align:center;max-width:40px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="'+esc(t.testName)+'">'+esc(t.testName.substring(0,6))+'</div>'+
+      '<div style="font-size:8px;color:'+color+';font-weight:700">'+marks+'</div>'+
       '</div>';
   }).join('');
-  return '<div style="display:flex;gap:6px;align-items:flex-end;padding:4px 0">'+bars+'</div>';
+  // Trend arrow
+  var pcts=tests.map(function(t){var v=Number((md[t.id]||{})[sid]||0);return v?Math.round((v/t.maxMarks)*100):null;}).filter(function(x){return x!==null;});
+  var trend='';
+  if(pcts.length>=2){var diff=pcts[pcts.length-1]-pcts[0];trend='<div style="text-align:center;font-size:11px;margin-top:4px">'+(diff>5?'📈 Improving (+'+diff+'%)':diff<-5?'📉 Declining ('+diff+'%)':'➡️ Stable')+'</div>';}
+  return '<div style="display:flex;gap:4px;align-items:flex-end;padding:4px 0;overflow-x:auto">'+bars+'</div>'+trend;
 }
 
 function pgHome(){
@@ -861,12 +896,40 @@ function pgHome(){
           '</div>';
       }).join('')+'</div>';
   }
+  // Today HW summary
+  var hwDoneToday=0,hwMissToday=0,hwTotalToday=0;
+  if(DB.homework){Object.keys(DB.homework).forEach(function(k){if(k.indexOf(aDt+'_')===0){var rec=DB.homework[k];Object.keys(rec).forEach(function(sid){hwTotalToday++;if(rec[sid]==='Y')hwDoneToday++;else if(rec[sid]==='N')hwMissToday++;});}});}
+  var hwSummaryHtml=hwTotalToday>0?'<div class="card"><div class="card-title">📚 आजचा गृहपाठ Summary</div><div class="grid3">'+sc(hwDoneToday,'✅ पूर्ण','#22c55e')+sc(hwMissToday,'❌ नाही','#ef4444')+sc(hwTotalToday-hwDoneToday-hwMissToday,'— बाकी','#94a3b8')+'</div>'+bar('HW Done',hwDoneToday,hwTotalToday||1,'#22c55e')+'</div>':'';
+  // Fee Defaulters
+  var defaulters=DB.students.filter(function(s){return (getYearlyFee(s.cls,s.subject,s.id)-getTotalPaid(s.id))>0&&!s.disabled;}).sort(function(a,b){return (getYearlyFee(b.cls,b.subject,b.id)-getTotalPaid(b.id))-(getYearlyFee(a.cls,a.subject,a.id)-getTotalPaid(a.id));});
+  var defaulterHtml='';
+  if(defaulters.length>0){
+    defaulterHtml='<div class="card" style="border-color:#ef4444;background:rgba(239,68,68,0.04)">'+
+      '<div class="card-title" style="color:#ef4444">💸 Fee Defaulters — '+defaulters.length+' Students</div>'+
+      defaulters.slice(0,5).map(function(s){
+        var bal=getYearlyFee(s.cls,s.subject,s.id)-getTotalPaid(s.id);
+        var msg='नमस्कार पालक,\n\n*'+s.name+'* ('+s.cls+') यांची फी बाकी आहे.\n\n💰 बाकी रक्कम: *₹'+bal+'*\n\nकृपया लवकरात लवकर फी भरावी.\n\nधन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">'+
+          '<div><div style="font-weight:700;font-size:13px">'+esc(s.name)+'</div>'+
+          '<div style="font-size:11px;color:var(--muted)">'+s.cls+' · <span style="color:#ef4444;font-weight:800">₹'+bal+' बाकी</span></div></div>'+
+          (s.phone?'<button class="btn-sm" style="background:#25d366;flex-shrink:0" onclick="sendDefaulterWA('+s.id+')">📱</button>':'<span style="font-size:10px;color:var(--muted)">No phone</span>')+
+          '</div>';
+      }).join('')+
+      (defaulters.length>5?'<div style="font-size:11px;color:var(--muted);text-align:center;padding:6px">...आणि '+(defaulters.length-5)+' जणांची फी बाकी</div>':'')+
+      '</div>';
+  }
+  // Week birthdays
+  var weekBd=birthdayStudentsThisWeek();
+  var weekBdHtml=weekBd.length>0?'<div class="card" style="border-color:#8b5cf6;background:rgba(139,92,246,0.05)"><div class="card-title" style="color:#8b5cf6">🗓️ या आठवड्यातील वाढदिवस — '+weekBd.length+' जण</div>'+weekBd.map(function(s){var bd=new Date(s.birthdate);return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)"><div><div style="font-weight:700;font-size:13px">'+esc(s.name)+' 🎉</div><div style="font-size:11px;color:var(--muted)">'+s.cls+' · '+bd.getDate()+'/'+(bd.getMonth()+1)+'</div></div>'+(s.phone?'<button class="btn-sm" style="background:#25d366;flex-shrink:0" onclick="sendBirthdayWA(DB.students.find(function(x){return x.id==='+s.id+';}))">🎂 WA</button>':'<span style=\"font-size:10px;color:var(--muted)\">No phone</span>')+'</div>';}).join('')+'</div>':'';
   return topbar('Phoenix Classes')+
     '<div class="app-header"><div style="display:flex;align-items:center;gap:12px">'+logoSVG+'<div><div class="app-header-title">Phoenix Classes</div><div class="app-header-sub">Maharashtra Board · Class 8–10</div><div style="font-size:10px;color:#fed7aa;letter-spacing:2px;margin-top:2px">Learn · Think · Grow</div></div></div></div>'+
     bdHtml+
+    weekBdHtml+
     alertHtml+
+    defaulterHtml+
     '<div class="grid2">'+sc(DB.students.length,'Total Students','#f97316')+sc(tp+'/'+total,'Present Today','#22c55e')+sc('₹'+getTotalCollected(),'Fee Collected','#eab308')+sc('₹'+getTotalPending(),'Fee Pending','#ef4444')+'</div>'+
     '<div class="card"><div class="card-title">📈 Today\'s Attendance</div>'+bar('Attendance',tp,total||1,'#22c55e')+'</div>'+
+    hwSummaryHtml+
     '<div class="card"><div class="card-title">📌 Class-wise Summary</div>'+
     '<table><thead><tr><th>Class</th><th>Students</th><th>Yearly Fee</th><th>Collected</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
     '<div class="card" style="border-color:var(--accent)"><div class="card-title">☁️ Backup</div>'+
@@ -926,9 +989,17 @@ function pgStu(){
         var idx = s.name.toLowerCase().indexOf(q);
         nameHtml = esc(s.name.slice(0,idx))+'<mark style="background:#f9731640;color:var(--accent);border-radius:3px;padding:0 2px">'+esc(s.name.slice(idx,idx+q.length))+'</mark>'+esc(s.name.slice(idx+q.length));
       }
+      var attPctVal=getAttPct(s.id,s.cls);
+      var avgMarks=getStudentAvgMarks(s.id,s.cls,s.subject);
+      var hwStat=getHWStats(s.id,s.cls);
       return '<tr>'+
         '<td>'+photoEl(s.id,s.name)+'</td>'+
-        '<td style="font-weight:700;cursor:pointer;color:var(--accent)" onclick="selStu='+s.id+';render()">'+nameHtml+'<br><span style="font-size:10px;color:var(--muted)">'+s.cls+'</span>'+(s.batchType==='Vacation'?'<br><span style="background:#7c3aed22;color:#8b5cf6;border:1px solid #8b5cf644;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">🏖️ Vacation</span>':'')+(s.disabled?'<br><span style="background:#ef444422;color:#ef4444;border:1px solid #ef444444;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">🚫 Disabled</span>':'')+badgeHtml(badges)+'</td>'+
+        '<td style="font-weight:700;cursor:pointer;color:var(--accent)" onclick="selStu='+s.id+';render()">'+nameHtml+'<br><span style="font-size:10px;color:var(--muted)">'+s.cls+'</span>'+(s.batchType==='Vacation'?'<br><span style="background:#7c3aed22;color:#8b5cf6;border:1px solid #8b5cf644;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">🏖️ Vacation</span>':'')+(s.disabled?'<br><span style="background:#ef444422;color:#ef4444;border:1px solid #ef444444;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">🚫 Disabled</span>':'')+badgeHtml(badges)+
+        '<div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap">'+
+        (attPctVal!==null?'<span style="background:'+(attPctVal>=75?'#22c55e22':'#ef444422')+';color:'+(attPctVal>=75?'#22c55e':'#ef4444')+';font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700">📋 '+attPctVal+'%</span>':'')+
+        (avgMarks!==null?'<span style="background:#3b82f622;color:#3b82f6;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700">📊 '+avgMarks+'%</span>':'')+
+        (hwStat.total>0?'<span style="background:#f9731622;color:#f97316;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700">📚 '+hwStat.pct+'%</span>':'')+
+        '</div></td>'+
         '<td>'+bdg(s.subject,'#3b82f6')+'</td>'+
         '<td>'+(fee>0&&bal<=0?bdg('Full Paid','#22c55e'):fee===0?bdg('Fee Not Set','#94a3b8'):bdg('₹'+bal+' Due','#ef4444'))+'</td>'+
         '<td style="display:flex;gap:4px"><button class="btn-sm" style="background:#3b82f6" onclick="openEditStu('+s.id+')">✏️</button><button class="btn-sm btn-red" onclick="dStu('+s.id+')">✕</button></td>'+
@@ -1144,6 +1215,28 @@ function pgReport(id){
         '<button class="btn-sm btn-red" onclick="delPay('+id+','+realIdx+')">✕</button>'+
         '</div></div>';
     }).join('');
+  // HW History
+  var hwRecords=[];
+  if(DB.homework){
+    Object.keys(DB.homework).sort().reverse().forEach(function(k){
+      var parts=k.split('_');
+      var date=parts[0];
+      var rec=DB.homework[k];
+      if(rec.hasOwnProperty(stu.id)){
+        hwRecords.push({date:date,status:rec[stu.id]});
+      }
+    });
+  }
+  hwRecords=hwRecords.slice(0,30);
+  var hwHistoryHtml=hwRecords.length===0?'<div class="empty">गृहपाठ record नाही.</div>':
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0">'+
+    hwRecords.map(function(r){
+      var color=r.status==='Y'?'#22c55e':r.status==='N'?'#ef4444':'#94a3b8';
+      var label=r.status==='Y'?'✅':'❌';
+      return '<div style="background:'+color+'22;border:1px solid '+color+'55;border-radius:8px;padding:4px 8px;font-size:10px;text-align:center;min-width:54px">'+
+        '<div style="font-weight:800;color:'+color+'">'+label+'</div>'+
+        '<div style="color:var(--muted);font-size:9px">'+fmtDate(r.date)+'</div></div>';
+    }).join('')+'</div>';
   // WA report
   var waMsg='नमस्कार पालक,\n\n*'+stu.name+'* ('+stu.cls+') यांचा संपूर्ण अहवाल\nPhoenix Classes\n\n';
   waMsg+='📊 *Academic Performance*\nOverall Grade: '+ovG+' ('+ovPct+'%)\n\n';
@@ -1168,6 +1261,7 @@ function pgReport(id){
     sc(balance<=0?'₹0':'₹'+balance,balance<=0?'Cleared':'Balance',balance<=0?'#22c55e':'#ef4444')+'</div>'+
     bar('Fee Collected',totalPaid,yearlyFee||1,'#22c55e')+
     '<div class="card-title" style="margin-top:12px">Payment History</div>'+payRows+'</div>'+
+    '<div class="card"><div class="card-title">📚 Homework History (गेले 30 दिवस)</div>'+hwHistoryHtml+'</div>'+
     (stu.phone?'<button class="btn btn-wa" onclick="waOpen(\''+stu.phone+'\',\''+waMsg.replace(/'/g,"\\'")+'\'">📱 Send Report on WhatsApp</button>':'');
 }
 
@@ -1778,6 +1872,13 @@ function delAtt(date,cls){
   var key=date+'_'+cls;
   delete DB.attendance[key];
   dbSWithSync();render();toast('Attendance deleted!',false);
+}
+function sendDefaulterWA(id){
+  var s=null;for(var i=0;i<DB.students.length;i++){if(DB.students[i].id===id){s=DB.students[i];break;}}
+  if(!s||!s.phone)return;
+  var bal=getYearlyFee(s.cls,s.subject,s.id)-getTotalPaid(s.id);
+  var msg='\u0928\u092e\u0938\u094d\u0915\u093e\u0930 \u092a\u093e\u0932\u0915,\n\n*'+s.name+'* ('+s.cls+') \u092f\u093e\u0902\u091a\u0940 \u092b\u0940 \u092c\u093e\u0915\u0940 \u0906\u0939\u0947.\n\n\uD83D\uDCB0 \u092c\u093e\u0915\u0940 \u0930\u0915\u094d\u0915\u092e: *\u20B9'+bal+'*\n\n\u0915\u0943\u092a\u092f\u093e \u0932\u0935\u0915\u0930\u093e\u0924 \u0932\u0935\u0915\u0930 \u092b\u0940 \u092d\u0930\u093e\u0935\u0940.\n\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,\nPhoenix Classes\n9503949009 / 9096815310';
+  waOpen(s.phone,msg);
 }
 function delHW(id){
   if(!confirm('या student चा गृहपाठ record delete करायचा?'))return;

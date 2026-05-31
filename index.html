@@ -1284,6 +1284,7 @@ function pgAtt(){
         '<button class="btn-sm '+(st2==='P'?'btn-green':'btn-gray')+'" onclick="mAtt('+s.id+',\'P\')">P</button>'+
         '<button class="btn-sm '+(st2==='A'?'btn-red':'btn-gray')+'" onclick="mAtt('+s.id+',\'A\')">A</button>'+
         waBtn+
+        (st2?'<button class="btn-sm" style="background:#6b7280;margin-left:4px;padding:5px 7px" title="हजेरी delete" onclick="delStuAtt('+s.id+',\''+aDt+'\')">🗑️</button>':'')+
         '</td>'+
         '</tr>';
     }).join('');
@@ -1532,13 +1533,14 @@ function pgMrk(){
           '<td style="font-weight:700">'+esc(s.name)+'</td>'+
           '<td><input type="number" style="width:60px;'+(isAbs?'opacity:0.3;pointer-events:none':'')+'" min="0" max="'+stObj.maxMarks+'" value="'+esc(numVal)+'" onchange="mEn['+s.id+']=this.value" placeholder="0" '+(isAbs?'disabled':'')+'/></td>'+
           '<td><button style="'+absBtnStyle+'" onclick="toggleAbsent('+s.id+')">Absent</button></td>'+
-          '<td>'+bdg(g,gc)+'</td></tr>';
+          '<td>'+bdg(g,gc)+'</td>'+
+          '<td>'+(s.phone&&!isAbs&&numVal?'<button class="btn-sm" style="background:#25d366;padding:5px 8px" onclick="sendTestResultWA('+s.id+','+selT+')">\xf0\x9f\x93\xb1</button>':'')+'</td>'+'</tr>';
       }).join('');
     mp='<div style="font-weight:800;font-size:15px;margin-bottom:4px">'+esc(stObj.testName)+'</div>'+
       '<div style="color:var(--muted);font-size:11px;margin-bottom:12px">'+stObj.cls+' · '+stObj.subject+' · Max: '+stObj.maxMarks+'</div>'+
       '<div style="font-size:11px;color:var(--muted);margin-bottom:10px;background:var(--bg);border-radius:8px;padding:8px 10px">'+
       '💡 Absent button दाबा — marks input disabled होईल आणि "Absent" दिसेल</div>'+
-      '<div style="overflow-x:auto"><table><thead><tr><th></th><th>Student</th><th>Marks/'+stObj.maxMarks+'</th><th>Absent?</th><th>Grade</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+      '<div style="overflow-x:auto"><table><thead><tr><th></th><th>Student</th><th>Marks/'+stObj.maxMarks+'</th><th>Absent?</th><th>Grade</th><th>WA</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
       (ts.length>0?'<button class="btn btn-green" onclick="saveMrk()">💾 Save Marks</button>':'');
   }
   return topbar('Marks & Results')+tabBtns+
@@ -1790,6 +1792,32 @@ function addT(){
   var t={id:Date.now(),testName:tn.value.trim(),cls:document.getElementById('tc').value,subject:document.getElementById('tsu').value,maxMarks:+document.getElementById('tm').value||100,date:document.getElementById('td').value};
   DB.marks.tests.push(t);dbSWithSync();selT=t.id;mEn={};render();toast('Test created!',false);
 }
+function sendTestResultWA(sid,tid){
+  var stu=null;for(var i=0;i<DB.students.length;i++){if(DB.students[i].id===sid){stu=DB.students[i];break;}}
+  if(!stu||!stu.phone){toast('Phone number नाही!',true);return;}
+  var test=null;for(var i=0;i<DB.marks.tests.length;i++){if(DB.marks.tests[i].id===tid){test=DB.marks.tests[i];break;}}
+  if(!test){toast('Test सापडला नाही!',true);return;}
+  var val=(DB.marks.data&&DB.marks.data[tid]&&DB.marks.data[tid][sid])||0;
+  var isAbs=(val==='AB'||val==='ab');
+  var v=isAbs?0:Number(val||0);
+  var pct=v&&test.maxMarks?Math.round((v/test.maxMarks)*100):0;
+  var g=isAbs?'Absent':!v?'—':pct>=75?'A':pct>=60?'B':pct>=40?'C':'D';
+  var emoji=g==='A'?'🌟':g==='B'?'👍':g==='C'?'📖':'💪';
+  var msg='नमस्कार पालक,\n\n📊 *चाचणी निकाल*\n🔥 Phoenix Classes\n────────────────\n'+
+    '👤 विद्यार्थी: *'+stu.name+'*\n'+
+    '📚 वर्ग: '+stu.cls+' · '+test.subject+'\n\n'+
+    '📝 *'+test.testName+'*\n'+
+    '────────────────\n'+
+    (isAbs
+      ? '❌ *गैरहजेर* - परीक्षेला अनुपस्थिहोते'
+      : '🎯 गुण: *'+v+' / '+test.maxMarks+'*\n'+
+        '📈 टक्केवारी: *'+pct+'%*\n'+
+        '🏆 श्रेणी: *'+g+'*  '+emoji
+    )+
+    '\n────────────────\n'+
+    'धन्यवाद,\nPhoenix Classes\n9503949009 / 9096815310';
+  waOpen(stu.phone,msg);
+}
 function selTest(id){selT=id;mEn={};var d=(DB.marks.data||{})[id]||{};for(var k in d)mEn[k]=d[k];render();}
 function saveMrk(){if(!DB.marks.data)DB.marks.data={};var cp={};for(var k in mEn)cp[k]=mEn[k];DB.marks.data[selT]=cp;dbSWithSync();toast('Marks saved!',false);render();}
 function delTest(id){if(!confirm('Delete this test and all its marks?'))return;DB.marks.tests=DB.marks.tests.filter(function(t){return t.id!==id;});if(DB.marks.data)delete DB.marks.data[id];if(selT===id)selT=null;dbSWithSync();render();toast('Test deleted!',false);}
@@ -1872,6 +1900,17 @@ function delAtt(date,cls){
   var key=date+'_'+cls;
   delete DB.attendance[key];
   dbSWithSync();render();toast('Attendance deleted!',false);
+}
+function delStuAtt(sid,date){
+  var stu=null;for(var i=0;i<DB.students.length;i++){if(DB.students[i].id===sid){stu=DB.students[i];break;}}
+  if(!stu)return;
+  if(!confirm(stu.name+' ची '+date+' ची हजेरी delete करायची?'))return;
+  var stuCls=(aCl==='All')?stu.cls:aCl;
+  var key=date+'_'+stuCls;
+  if(DB.attendance[key]&&DB.attendance[key][sid]!==undefined){
+    delete DB.attendance[key][sid];
+    dbSWithSync();render();toast(stu.name+' ची हजेरी delete झाली!',false);
+  }
 }
 function sendDefaulterWA(id){
   var s=null;for(var i=0;i<DB.students.length;i++){if(DB.students[i].id===id){s=DB.students[i];break;}}

@@ -1627,7 +1627,6 @@ function pgMrk(){
         var numVal=(!isAbs&&val!==undefined&&val!=='')?val:'';
         var pct=numVal?(Number(numVal)/stObj.maxMarks)*100:null;
         var g=isAbs?'Absent':pct===null?'—':pct>=75?'A':pct>=60?'B':pct>=40?'C':'D';
-        var gc=isAbs?'#94a3b8':g==='A'?'#22c55e':g==='B'?'#3b82f6':g==='C'?'#eab308':g==='D'?'#ef4444':'var(--muted)';
         var absBtnStyle=isAbs?
           'background:#64748b;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer':
           'background:var(--bg);color:var(--muted);border:1.5px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer';

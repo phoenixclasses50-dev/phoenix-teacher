@@ -617,7 +617,15 @@ function waOpen(phone,msg){
   var clean=String(phone||'').replace(/\D/g,'');
   if(!clean){toast('No phone number!',true);return;}
   if(clean.length===10)clean='91'+clean;
-  window.open('https://wa.me/'+clean+'?text='+encodeURIComponent(msg),'_blank');
+  var txt=encodeURIComponent(msg);
+  var fallback=encodeURIComponent('https://wa.me/'+clean+'?text='+txt);
+  // WhatsApp Business (Android intent) — fallback to wa.me on desktop/iOS
+  var isAndroid=/Android/i.test(navigator.userAgent);
+  if(isAndroid){
+    window.open('intent://send?phone='+clean+'&text='+txt+'#Intent;scheme=whatsapp;package=com.whatsapp.w4b;S.browser_fallback_url='+fallback+';end','_blank');
+  } else {
+    window.open('https://wa.me/'+clean+'?text='+txt,'_blank');
+  }
 }
 function fmtDate(str){
   if(!str)return '';
@@ -2092,7 +2100,11 @@ function generateReceipt(ps, payment, receiptNo){
     (fullyClear?'✅ *Fee Fully Cleared! 🎉*':'⚠️ बाकी रक्कम: ₹'+bal)+'\n'+
     '━━━━━━━━━━━━━━━━\n'+
     'धन्यवाद! 🔥 Phoenix Classes\n9503949009 / 9096815310';
-  var waTextUrl = waPhone ? 'https://wa.me/'+waPhone+'?text='+encodeURIComponent(waMsg) : '';
+  var waClean2=String(waPhone||'').replace(/\D/g,'');if(waClean2.length===10)waClean2='91'+waClean2;
+  var waTxt2=encodeURIComponent(waMsg);
+  var waFb2=encodeURIComponent('https://wa.me/'+waClean2+'?text='+waTxt2);
+  var isAndroid2=/Android/i.test(navigator.userAgent);
+  var waTextUrl = waPhone ? (isAndroid2?'intent://send?phone='+waClean2+'&text='+waTxt2+'#Intent;scheme=whatsapp;package=com.whatsapp.w4b;S.browser_fallback_url='+waFb2+';end':'https://wa.me/'+waClean2+'?text='+waTxt2) : '';
   var pct = Math.min(100,Math.round((paid/Math.max(fee,1))*100));
   var w = window.open('','_blank','width=440,height=760');
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/>'+
